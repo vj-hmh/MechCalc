@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Tensile Stress — Mechanical Calculation Toolkit</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+<header class="app" id="appHeader"></header>
+<nav class="crumbs" id="appNav"></nav>
+<main>
+<div id="globalError" class="errorbox"></div>
+<div class="card"><h2>Tensile Stress</h2>
+<div class="formula">F<sub>eff</sub> = F × distribution factor ÷ load-sharing components<br>σ<sub>t</sub> = F<sub>eff</sub> ÷ A</div>
+<div class="grid">
+<div class="field"><label>Applied axial load (kip) *</label><input type="number" id="ts_load" step="any"></div>
+<div class="field"><label>Tensile area (in²) *</label><input type="number" id="ts_area" step="any"></div>
+<div class="field"><label>Load-sharing components</label><input type="number" id="ts_count" value="1" min="1"></div>
+<div class="field"><label>Load distribution factor</label><input type="number" id="ts_factor" value="1" step="any"></div>
+<div class="field"><label>Allowable tensile stress (ksi) *</label><input type="number" id="ts_allow" step="any"></div>
+</div>
+<p><button class="calcbtn" onclick="calcTensile()">Calculate Tensile Stress</button></p>
+<div id="ts_results" class="results"></div>
+<p class="jump"><a href="calculation-report.html"><button class="ghost">View in Calculation Report</button></a></p>
+</div>
+</main>
+<div class="footer">Prototype engineering aid. Results require independent engineering verification.</div>
+<script src="shared.js"></script>
+<script>
+const FIELDS=['ts_load','ts_area','ts_count','ts_factor','ts_allow'];
+function restore(){const d=loadData();const inputs=(d.inputs||{});FIELDS.forEach(id=>{if(inputs[id]!==undefined)document.getElementById(id).value=inputs[id]});const saved=(d.results||{}).tensile;if(saved)document.getElementById('ts_results').innerHTML=box('Effective load',fmt(saved.vars.find(v=>v.symbol==='Fₑ').value),'kip')+box('Tensile stress',fmt(saved.demand,4),'ksi')+box('Allowable',fmt(saved.allowable),'ksi')+box('UF',fmt(saved.uf))+sbox(saved.status)}
+function persistInputs(){const d=loadData();d.inputs=d.inputs||{};FIELDS.forEach(id=>d.inputs[id]=document.getElementById(id).value);saveData(d)}
+function calcTensile(){
+ if(!validPairs([['ts_load','Applied load','nonnegative'],['ts_area','Tensile area','positive'],['ts_count','Load-sharing components','positive'],['ts_factor','Distribution factor','positive'],['ts_allow','Allowable tensile stress','positive']]))return false;
+ const F=Number(document.getElementById('ts_load').value),A=Number(document.getElementById('ts_area').value),count=Number(document.getElementById('ts_count').value),k=Number(document.getElementById('ts_factor').value),allow=Number(document.getElementById('ts_allow').value);
+ const eff=F*k/count,stress=eff/A,uf=stress/allow;
+ const vars=[variable('F','Applied Axial Load',F,'kip','input'),variable('k','Load Distribution Factor',k,'-','input'),variable('n','Load-Sharing Components',count,'-','input'),variable('Aₜ','Tensile Area',A,'in²','input'),variable('Sallow','Allowable Tensile Stress',allow,'ksi','input'),variable('Fₑ','Effective Axial Load',eff,'kip','calculated'),variable('σₜ','Calculated Tensile Stress',stress,'ksi','calculated'),variable('UF','Utilization Factor',uf,'-','calculated')];
+ const steps=[step('Effective load','Fₑ = F × k ÷ n',`Fₑ = ${F} × ${k} ÷ ${count}`,`Fₑ = ${fmt(eff,4)} kip`),step('Tensile stress','σₜ = Fₑ ÷ Aₜ',`σₜ = ${fmt(eff,4)} ÷ ${A}`,`σₜ = ${fmt(stress,4)} ksi`),step('Utilization','UF = σₜ ÷ Sallow',`UF = ${fmt(stress,4)} ÷ ${allow}`,`UF = ${fmt(uf,3)} → ${status(uf)}`)];
+ document.getElementById('ts_results').innerHTML=box('Effective load',fmt(eff),'kip')+box('Tensile stress',fmt(stress,4),'ksi')+box('Allowable',fmt(allow),'ksi')+box('UF',fmt(uf))+sbox(status(uf));
+ saveModuleResult('tensile',{name:'Tensile stress',demand:stress,allowable:allow,uf,unit:'ksi',status:status(uf),vars,steps});
+ persistInputs();
+ return true;
+}
+renderChrome('tensile');
+restore();
+document.querySelectorAll('input').forEach(el=>el.addEventListener('input',persistInputs));
+</script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Utilization Summary — Mechanical Calculation Toolkit</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+<header class="app" id="appHeader"></header>
+<nav class="crumbs" id="appNav"></nav>
+<main>
+<div class="card"><h2>Utilization-Factor Summary</h2>
+<p class="small">Pulled automatically from every calculation module you have run in this browser.</p>
+<div id="summary"></div>
+<p class="jump"><a href="calculation-report.html"><button class="ghost">Open Full Calculation Report</button></a></p>
+</div>
+</main>
+<div class="footer">Prototype engineering aid. Results require independent engineering verification.</div>
+<script src="shared.js"></script>
+<script>
+function render(){
+ const d=loadData();const rows=Object.values(d.results||{});
+ document.getElementById('summary').innerHTML=rows.length?`<table><thead><tr><th>Calculation</th><th class="right">Demand</th><th class="right">Allowable / Capacity</th><th class="right">UF</th><th>Status</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.name)}</td><td class="right">${fmt(r.demand)} ${esc(r.unit)}</td><td class="right">${fmt(r.allowable)} ${esc(r.unit)}</td><td class="right">${fmt(r.uf)}</td><td><span class="status ${r.status}">${r.status.replace('-',' ')}</span></td></tr>`).join('')}</tbody></table>`:'<p class="small">No completed calculations yet. Run a calculation module from the dashboard.</p>';
+}
+renderChrome('summary');
+render();
+</script>
+</body>
+</html>

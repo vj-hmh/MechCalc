@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Thread Shear Stress — Mechanical Calculation Toolkit</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+<header class="app" id="appHeader"></header>
+<nav class="crumbs" id="appNav"></nav>
+<main>
+<div id="globalError" class="errorbox"></div>
+<div class="card"><h2>Thread Shear Stress</h2>
+<div class="formula">τ = F ÷ A<sub>s</sub></div>
+<div class="grid">
+<div class="field"><label>Thread designation</label><input id="th_designation"></div>
+<div class="field"><label>Applied axial load (kip) *</label><input type="number" id="th_load" step="any"></div>
+<div class="field"><label>External thread shear area (in²) *</label><input type="number" id="th_extarea" step="any"></div>
+<div class="field"><label>External shear allowable (ksi) *</label><input type="number" id="th_extallow" step="any"></div>
+<div class="field"><label>Internal thread shear area (in²) *</label><input type="number" id="th_intarea" step="any"></div>
+<div class="field"><label>Internal shear allowable (ksi) *</label><input type="number" id="th_intallow" step="any"></div>
+<div class="field"><label>Engagement length (in)</label><input type="number" id="th_eng" step="any"></div>
+<div class="field"><label>Area equation / source</label><input id="th_source"></div>
+</div>
+<p><button class="calcbtn" onclick="calcThread()">Calculate Thread Shear</button></p>
+<div id="th_results" class="results"></div>
+<p class="jump"><a href="calculation-report.html"><button class="ghost">View in Calculation Report</button></a></p>
+</div>
+</main>
+<div class="footer">Prototype engineering aid. Results require independent engineering verification.</div>
+<script src="shared.js"></script>
+<script>
+const FIELDS=['th_designation','th_load','th_extarea','th_extallow','th_intarea','th_intallow','th_eng','th_source'];
+function restore(){const d=loadData();const inputs=(d.inputs||{});FIELDS.forEach(id=>{if(inputs[id]!==undefined)document.getElementById(id).value=inputs[id]});const saved=(d.results||{}).thread;if(saved)document.getElementById('th_results').innerHTML=box('External shear',fmt(saved.vars.find(v=>v.symbol==='τₑ').value,4),'ksi')+box('External UF',fmt(saved.vars.find(v=>v.symbol==='UFₑ').value))+box('Internal shear',fmt(saved.vars.find(v=>v.symbol==='τᵢ').value,4),'ksi')+box('Internal UF',fmt(saved.vars.find(v=>v.symbol==='UFᵢ').value))+box('Governing UF',fmt(saved.uf))+sbox(saved.status)}
+function persistInputs(){const d=loadData();d.inputs=d.inputs||{};FIELDS.forEach(id=>d.inputs[id]=document.getElementById(id).value);saveData(d)}
+function calcThread(){
+ if(!validPairs([['th_load','Applied load','nonnegative'],['th_extarea','External shear area','positive'],['th_extallow','External allowable','positive'],['th_intarea','Internal shear area','positive'],['th_intallow','Internal allowable','positive']]))return false;
+ const F=Number(document.getElementById('th_load').value),Ae=Number(document.getElementById('th_extarea').value),Ai=Number(document.getElementById('th_intarea').value),Se=Number(document.getElementById('th_extallow').value),Si=Number(document.getElementById('th_intallow').value);
+ const te=F/Ae,ti=F/Ai,ue=te/Se,ui=ti/Si,uf=Math.max(ue,ui);
+ const vars=[variable('F','Applied Axial Load',F,'kip','input'),variable('Ase','External Thread Shear Area',Ae,'in²','input'),variable('Asi','Internal Thread Shear Area',Ai,'in²','input'),variable('Sallow,e','External Shear Allowable',Se,'ksi','input'),variable('Sallow,i','Internal Shear Allowable',Si,'ksi','input'),variable('Lₑ','Thread Engagement Length',document.getElementById('th_eng').value,'in','input'),variable('Thread','Thread Designation',document.getElementById('th_designation').value,'','input'),variable('Source','Area Equation / Source',document.getElementById('th_source').value,'','input'),variable('τₑ','External Thread Shear Stress',te,'ksi','calculated'),variable('τᵢ','Internal Thread Shear Stress',ti,'ksi','calculated'),variable('UFₑ','External Thread Utilization Factor',ue,'-','calculated'),variable('UFᵢ','Internal Thread Utilization Factor',ui,'-','calculated'),variable('UF','Governing Utilization Factor',uf,'-','calculated')];
+ const steps=[step('External thread shear stress','τₑ = F ÷ Ase',`τₑ = ${F} ÷ ${Ae}`,`τₑ = ${fmt(te,4)} ksi`),step('Internal thread shear stress','τᵢ = F ÷ Asi',`τᵢ = ${F} ÷ ${Ai}`,`τᵢ = ${fmt(ti,4)} ksi`),step('External utilization','UFₑ = τₑ ÷ Sallow,e',`UFₑ = ${fmt(te,4)} ÷ ${Se}`,`UFₑ = ${fmt(ue,3)}`),step('Internal utilization','UFᵢ = τᵢ ÷ Sallow,i',`UFᵢ = ${fmt(ti,4)} ÷ ${Si}`,`UFᵢ = ${fmt(ui,3)}`),step('Governing check','UF = max(UFₑ, UFᵢ)',`UF = max(${fmt(ue,3)}, ${fmt(ui,3)})`,`UF = ${fmt(uf,3)} → ${status(uf)}`)];
+ document.getElementById('th_results').innerHTML=box('External shear',fmt(te,4),'ksi')+box('External UF',fmt(ue))+box('Internal shear',fmt(ti,4),'ksi')+box('Internal UF',fmt(ui))+box('Governing UF',fmt(uf))+sbox(status(uf));
+ saveModuleResult('thread',{name:'Thread shear stress',demand:Math.max(te,ti),allowable:te>=ti?Se:Si,uf,unit:'ksi',status:status(uf),vars,steps});
+ persistInputs();
+ return true;
+}
+renderChrome('thread');
+restore();
+document.querySelectorAll('input').forEach(el=>el.addEventListener('input',persistInputs));
+</script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Dashboard — Mechanical Calculation Toolkit</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+<header class="app" id="appHeader"></header>
+<nav class="crumbs" id="appNav"></nav>
+<main>
+<div class="notice"><b>Engineering control:</b> Verify every formula, input, material property, allowable, friction value and acceptance limit against the applicable approved document, drawing and design standard. Final acceptance remains with the responsible engineer.</div>
+<div class="card">
+  <h2>Calculation categories</h2>
+  <p class="small">Each category opens as its own page. Fill in a category, calculate it, and its result automatically feeds the Utilization Summary and the Calculation Report.</p>
+  <div class="tiles" id="tiles"></div>
+</div>
+<div class="card">
+  <h3>Session data</h3>
+  <p class="small">All entered data and results are stored in this browser only (nothing is sent anywhere). Use Reset to clear everything and start a new calculation set.</p>
+  <button class="danger" onclick="resetAll()">Reset all project data</button>
+</div>
+</main>
+<div class="footer">Prototype engineering aid. Results require independent engineering verification.</div>
+<script src="shared.js"></script>
+<script>
+const DESCR={
+ project:'Title block, references and assumptions for the report.',
+ bolt:'Preload, tightening torque and clamp load from bolt properties.',
+ tensile:'Axial tensile stress and utilization for a member or bolt.',
+ thread:'Internal/external thread shear stress and governing utilization.',
+ bearing:'Bearing (contact) stress and utilization.',
+ membrane:'Axial or thin-cylinder (hoop/longitudinal) membrane stress.',
+ hydraulic:'Cylinder force capacity from bore, rod and pressure.',
+ summary:'Utilization-factor summary across every completed module.',
+ report:'Preview, download (Word) or print the full calculation report.'
+};
+function renderTiles(){
+ const d=loadData();
+ q_tiles();
+ function q_tiles(){
+  const el=document.getElementById('tiles');
+  el.innerHTML=PAGES.map((p,i)=>{
+   let statusHtml='';
+   if(p.key==='project'){statusHtml=(d.project&&d.project.p_title)?'<span class="status PASS">SAVED</span>':'';}
+   const r=(d.results||{})[p.key];
+   if(r)statusHtml=`<span class="status ${r.status}">${r.status.replace('-',' ')}</span>`;
+   return `<a class="tile" href="${p.file}"><div class="tnum">${String(i+1).padStart(2,'0')}</div><h3>${esc(p.label)}</h3><p>${esc(DESCR[p.key]||'')}</p><div class="tstatus">${statusHtml}</div></a>`;
+  }).join('');
+ }
+}
+function resetAll(){
+ if(!confirm('Clear all entered project data and calculation results in this browser?'))return;
+ clearAllData();
+ renderTiles();
+}
+renderChrome('');
+renderTiles();
+</script>
+</body>
+</html>

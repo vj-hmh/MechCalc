@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Hydraulic Cylinder Force — Mechanical Calculation Toolkit</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+<header class="app" id="appHeader"></header>
+<nav class="crumbs" id="appNav"></nav>
+<main>
+<div id="globalError" class="errorbox"></div>
+<div class="card"><h2>Hydraulic Cylinder Force</h2>
+<div class="formula">A<sub>cap</sub> = πD²/4<br>A<sub>ann</sub> = π(D²−d²)/4<br>F<sub>net</sub> = (P<sub>cap</sub>A<sub>cap</sub> − P<sub>rod</sub>A<sub>ann</sub>)ηn</div>
+<div class="grid">
+<div class="field"><label>Bore diameter, D (in) *</label><input type="number" id="hy_bore" step="any"></div>
+<div class="field"><label>Rod diameter, d (in) *</label><input type="number" id="hy_rod" step="any"></div>
+<div class="field"><label>Cap pressure (psi) *</label><input type="number" id="hy_pcap" step="any"></div>
+<div class="field"><label>Rod-side pressure (psi)</label><input type="number" id="hy_prod" value="0" step="any"></div>
+<div class="field"><label>Efficiency (%)</label><input type="number" id="hy_eff" value="100" step="any"></div>
+<div class="field"><label>Number of cylinders</label><input type="number" id="hy_count" value="1" min="1"></div>
+<div class="field"><label>Required force (kip)</label><input type="number" id="hy_required" step="any"></div>
+</div>
+<p><button class="calcbtn" onclick="calcHydraulic()">Calculate Hydraulic Force</button></p>
+<div id="hy_results" class="results"></div>
+<p class="jump"><a href="calculation-report.html"><button class="ghost">View in Calculation Report</button></a></p>
+</div>
+</main>
+<div class="footer">Prototype engineering aid. Results require independent engineering verification.</div>
+<script src="shared.js"></script>
+<script>
+const FIELDS=['hy_bore','hy_rod','hy_pcap','hy_prod','hy_eff','hy_count','hy_required'];
+function restore(){const d=loadData();const inputs=(d.inputs||{});FIELDS.forEach(id=>{if(inputs[id]!==undefined)document.getElementById(id).value=inputs[id]});const saved=(d.results||{}).hydraulic;if(saved)document.getElementById('hy_results').innerHTML=box('Cap area',fmt(saved.vars.find(v=>v.symbol==='Acap').value,4),'in²')+box('Rod-side area',fmt(saved.vars.find(v=>v.symbol==='Aann').value,4),'in²')+box('Net available force',fmt(saved.allowable,4),'kip')+box('Required force',saved.demand>0?fmt(saved.demand):'Not entered','kip')+box('UF',fmt(saved.uf))+sbox(saved.status)}
+function persistInputs(){const d=loadData();d.inputs=d.inputs||{};FIELDS.forEach(id=>d.inputs[id]=document.getElementById(id).value);saveData(d)}
+function calcHydraulic(){
+ if(!validPairs([['hy_bore','Bore diameter','positive'],['hy_rod','Rod diameter','nonnegative'],['hy_pcap','Cap pressure','nonnegative'],['hy_prod','Rod pressure','nonnegative'],['hy_eff','Efficiency','positive'],['hy_count','Cylinder count','positive']]))return false;
+ if(Number(document.getElementById('hy_rod').value)>=Number(document.getElementById('hy_bore').value)){showError('Rod diameter must be less than bore diameter.');return false}
+ const D=Number(document.getElementById('hy_bore').value),d=Number(document.getElementById('hy_rod').value),Pc=Number(document.getElementById('hy_pcap').value),Pr=Number(document.getElementById('hy_prod').value),eta=Number(document.getElementById('hy_eff').value)/100,count=Number(document.getElementById('hy_count').value),req=Number(document.getElementById('hy_required').value);
+ const Ac=Math.PI*D**2/4,Aa=Math.PI*(D**2-d**2)/4,Fcap=Pc*Ac,Frod=Pr*Aa,Fnet=(Fcap-Frod)*eta*count/1000,uf=req>0&&Fnet>0?req/Fnet:NaN;
+ const vars=[variable('D','Cylinder Bore Diameter',D,'in','input'),variable('d','Rod Diameter',d,'in','input'),variable('Pcap','Cap-Side Pressure',Pc,'psi','input'),variable('Prod','Rod-Side Pressure',Pr,'psi','input'),variable('η','Mechanical / Hydraulic Efficiency',eta,'-','input'),variable('n','Number of Cylinders',count,'-','input'),variable('Frequired','Required Force',req,'kip','input'),variable('Acap','Cap-End Piston Area',Ac,'in²','calculated'),variable('Aann','Rod-Side Annular Area',Aa,'in²','calculated'),variable('Fcap','Cap-Side Hydraulic Force',Fcap,'lbf','calculated'),variable('Frod','Rod-Side Opposing Force',Frod,'lbf','calculated'),variable('Fnet','Net Available Force',Fnet,'kip','calculated'),variable('UF','Capacity Utilization Factor',uf,'-','calculated')];
+ const steps=[step('Cap area','Acap = πD² ÷ 4',`Acap = π × ${D}² ÷ 4`,`Acap = ${fmt(Ac,4)} in²`),step('Rod-side annular area','Aann = π(D² − d²) ÷ 4',`Aann = π(${D}² − ${d}²) ÷ 4`,`Aann = ${fmt(Aa,4)} in²`),step('Cap-side force','Fcap = Pcap × Acap',`Fcap = ${Pc} × ${fmt(Ac,4)}`,`Fcap = ${fmt(Fcap,2)} lbf`),step('Rod-side opposing force','Frod = Prod × Aann',`Frod = ${Pr} × ${fmt(Aa,4)}`,`Frod = ${fmt(Frod,2)} lbf`),step('Net available force','Fnet = (Fcap − Frod) × η × n ÷ 1000',`Fnet = (${fmt(Fcap,2)} − ${fmt(Frod,2)}) × ${eta} × ${count} ÷ 1000`,`Fnet = ${fmt(Fnet,4)} kip`),step('Capacity utilization','UF = Frequired ÷ Fnet',req>0?`UF = ${req} ÷ ${fmt(Fnet,4)}`:'Required force not entered',req>0?`UF = ${fmt(uf,3)} → ${status(uf)}`:'Not evaluated')];
+ document.getElementById('hy_results').innerHTML=box('Cap area',fmt(Ac,4),'in²')+box('Rod-side area',fmt(Aa,4),'in²')+box('Net available force',fmt(Fnet,4),'kip')+box('Required force',req>0?fmt(req):'Not entered','kip')+box('UF',fmt(uf))+sbox(status(uf));
+ saveModuleResult('hydraulic',{name:'Hydraulic force capacity',demand:req,allowable:Fnet,uf,unit:'kip',status:status(uf),vars,steps});
+ persistInputs();
+ return true;
+}
+renderChrome('hydraulic');
+restore();
+document.querySelectorAll('input').forEach(el=>el.addEventListener('input',persistInputs));
+</script>
+</body>
+</html>

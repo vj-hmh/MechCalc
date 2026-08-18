@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Membrane Stress — Mechanical Calculation Toolkit</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+<header class="app" id="appHeader"></header>
+<nav class="crumbs" id="appNav"></nav>
+<main>
+<div id="globalError" class="errorbox"></div>
+<div class="card"><h2>Membrane Stress</h2>
+<div class="grid">
+<div class="field"><label>Method *</label><select id="ms_method" onchange="toggleMembrane()"><option value="axial">Axial: F/A</option><option value="hoop">Thin cylinder hoop: PD/(2t)</option><option value="long">Thin cylinder longitudinal: PD/(4t)</option></select></div>
+<div class="field msAxial"><label>Axial force (kip)</label><input type="number" id="ms_force" step="any"></div>
+<div class="field msAxial"><label>Effective area (in²)</label><input type="number" id="ms_area" step="any"></div>
+<div class="field msPressure" style="display:none"><label>Pressure (psi)</label><input type="number" id="ms_pressure" step="any"></div>
+<div class="field msPressure" style="display:none"><label>Diameter basis (in)</label><input type="number" id="ms_dia" step="any"></div>
+<div class="field msPressure" style="display:none"><label>Effective thickness (in)</label><input type="number" id="ms_thk" step="any"></div>
+<div class="field"><label>Allowable membrane stress (ksi) *</label><input type="number" id="ms_allow" step="any"></div>
+<div class="field"><label>Method applicability / reference</label><input id="ms_reference"></div>
+</div>
+<div id="msFormula" class="formula">σ<sub>m</sub> = F ÷ A</div>
+<p><button class="calcbtn" onclick="calcMembrane()">Calculate Membrane Stress</button></p>
+<div id="ms_results" class="results"></div>
+<p class="jump"><a href="calculation-report.html"><button class="ghost">View in Calculation Report</button></a></p>
+</div>
+</main>
+<div class="footer">Prototype engineering aid. Results require independent engineering verification.</div>
+<script src="shared.js"></script>
+<script>
+const FIELDS=['ms_method','ms_force','ms_area','ms_pressure','ms_dia','ms_thk','ms_allow','ms_reference'];
+function toggleMembrane(){const pressure=document.getElementById('ms_method').value!=='axial';document.querySelectorAll('.msPressure').forEach(x=>x.style.display=pressure?'block':'none');document.querySelectorAll('.msAxial').forEach(x=>x.style.display=pressure?'none':'block');document.getElementById('msFormula').innerHTML=document.getElementById('ms_method').value==='axial'?'σ<sub>m</sub> = F ÷ A':document.getElementById('ms_method').value==='hoop'?'σ<sub>h</sub> = PD ÷ (2t)':'σ<sub>l</sub> = PD ÷ (4t)'}
+function restore(){const d=loadData();const inputs=(d.inputs||{});FIELDS.forEach(id=>{if(inputs[id]!==undefined)document.getElementById(id).value=inputs[id]});toggleMembrane();const saved=(d.results||{}).membrane;if(saved)document.getElementById('ms_results').innerHTML=box('Membrane stress',fmt(saved.demand,4),'ksi')+box('Allowable',fmt(saved.allowable),'ksi')+box('UF',fmt(saved.uf))+sbox(saved.status)}
+function persistInputs(){const d=loadData();d.inputs=d.inputs||{};FIELDS.forEach(id=>d.inputs[id]=document.getElementById(id).value);saveData(d)}
+function calcMembrane(){
+ const method=document.getElementById('ms_method').value,allow=Number(document.getElementById('ms_allow').value);
+ let stress,vars,steps;
+ if(method==='axial'){
+   if(!validPairs([['ms_force','Axial force','nonnegative'],['ms_area','Effective area','positive'],['ms_allow','Allowable','positive']]))return false;
+   const F=Number(document.getElementById('ms_force').value),A=Number(document.getElementById('ms_area').value);
+   stress=F/A;
+   vars=[variable('F','Axial Force',F,'kip','input'),variable('A','Effective Area',A,'in²','input'),variable('Sallow','Allowable Membrane Stress',allow,'ksi','input'),variable('Reference','Method Applicability / Reference',document.getElementById('ms_reference').value,'','input'),variable('σm','Calculated Axial Membrane Stress',stress,'ksi','calculated')];
+   steps=[step('Axial membrane stress','σm = F ÷ A',`σm = ${F} ÷ ${A}`,`σm = ${fmt(stress,4)} ksi`)];
+ }else{
+   if(!validPairs([['ms_pressure','Pressure','nonnegative'],['ms_dia','Diameter','positive'],['ms_thk','Thickness','positive'],['ms_allow','Allowable','positive']]))return false;
+   const P=Number(document.getElementById('ms_pressure').value),D=Number(document.getElementById('ms_dia').value),t=Number(document.getElementById('ms_thk').value),c=method==='hoop'?2:4,psi=P*D/(c*t);
+   stress=psi/1000;
+   vars=[variable('P','Internal Pressure',P,'psi','input'),variable('D','Diameter Basis',D,'in','input'),variable('t','Effective Thickness',t,'in','input'),variable('c',method==='hoop'?'Hoop Formula Denominator':'Longitudinal Formula Denominator',c,'-','input'),variable('Sallow','Allowable Membrane Stress',allow,'ksi','input'),variable('Reference','Method Applicability / Reference',document.getElementById('ms_reference').value,'','input'),variable(method==='hoop'?'σh':'σl',method==='hoop'?'Calculated Hoop Membrane Stress':'Calculated Longitudinal Membrane Stress',stress,'ksi','calculated')];
+   steps=[step(method==='hoop'?'Hoop stress':'Longitudinal stress','σ = PD ÷ (c t)',`σ = ${P} × ${D} ÷ (${c} × ${t})`,`σ = ${fmt(psi,3)} psi`),step('Unit conversion','σ(ksi) = σ(psi) ÷ 1000',`σ = ${fmt(psi,3)} ÷ 1000`,`σ = ${fmt(stress,4)} ksi`)];
+ }
+ const uf=stress/allow;
+ vars.push(variable('UF','Utilization Factor',uf,'-','calculated'));
+ steps.push(step('Utilization','UF = σ ÷ Sallow',`UF = ${fmt(stress,4)} ÷ ${allow}`,`UF = ${fmt(uf,3)} → ${status(uf)}`));
+ document.getElementById('ms_results').innerHTML=box('Membrane stress',fmt(stress,4),'ksi')+box('Allowable',fmt(allow),'ksi')+box('UF',fmt(uf))+sbox(status(uf));
+ saveModuleResult('membrane',{name:'Membrane stress',demand:stress,allowable:allow,uf,unit:'ksi',status:status(uf),vars,steps});
+ persistInputs();
+ return true;
+}
+renderChrome('membrane');
+restore();
+document.querySelectorAll('input,select').forEach(el=>el.addEventListener('input',persistInputs));
+</script>
+</body>
+</html>

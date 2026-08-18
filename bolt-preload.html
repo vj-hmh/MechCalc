@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Bolt Preload and Torque — Mechanical Calculation Toolkit</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+<header class="app" id="appHeader"></header>
+<nav class="crumbs" id="appNav"></nav>
+<main>
+<div id="globalError" class="errorbox"></div>
+<div class="card"><h2>Bolt Preload and Torque</h2>
+<div class="formula">Yield Load Capacity (F<sub>y</sub>) = Tensile Stress Area (A<sub>t</sub>) × Yield Strength (S<sub>y</sub>)<br>Initial Bolt Preload Force (F<sub>i</sub>) = Target Preload Fraction (f) × Yield Load Capacity (F<sub>y</sub>)<br>Tightening Torque (T) = Nut Factor (K) × Initial Bolt Preload Force (F<sub>i</sub>) × Nominal Bolt Diameter (d)</div>
+<div class="grid">
+<div class="field"><label>Tensile stress area, At (in²) *</label><input type="number" id="bp_area" step="any"></div>
+<div class="field"><label>Yield strength, Sy (ksi) *</label><input type="number" id="bp_yield" step="any"></div>
+<div class="field"><label>Target preload (%) *</label><input type="number" id="bp_pct" value="70" step="any"></div>
+<div class="field"><label>Nominal diameter, d (in) *</label><input type="number" id="bp_dia" step="any"></div>
+<div class="field"><label>Nut factor, K *</label><input type="number" id="bp_k" value="0.18" step="any"></div>
+<div class="field"><label>Number of bolts</label><input type="number" id="bp_count" value="1" min="1"></div>
+<div class="field"><label>Allowable preload stress (ksi)</label><input type="number" id="bp_allow" step="any"></div>
+</div>
+<p><button class="calcbtn" onclick="calcBolt()">Calculate Bolt Preload</button></p>
+<div id="bp_results" class="results"></div>
+<p class="jump"><a href="calculation-report.html"><button class="ghost">View in Calculation Report</button></a></p>
+</div>
+</main>
+<div class="footer">Prototype engineering aid. Results require independent engineering verification.</div>
+<script src="shared.js"></script>
+<script>
+const FIELDS=['bp_area','bp_yield','bp_pct','bp_dia','bp_k','bp_count','bp_allow'];
+function restore(){const d=loadData();const saved=(d.results||{}).bolt;const inputs=(d.inputs||{});FIELDS.forEach(id=>{if(inputs[id]!==undefined)document.getElementById(id).value=inputs[id]});if(saved)renderResultsOnly(saved)}
+function persistInputs(){const d=loadData();d.inputs=d.inputs||{};FIELDS.forEach(id=>d.inputs[id]=document.getElementById(id).value);saveData(d)}
+function renderResultsOnly(r){const uf=r.uf;document.getElementById('bp_results').innerHTML=box('Yield Load Capacity (Fᵧ)',fmt(r.vars.find(v=>v.symbol==='Fᵧ').value,3),'kip')+box('Initial Bolt Preload Force (Fᵢ)',fmt(r.vars.find(v=>v.symbol==='Fᵢ').value,3),'kip')+box('Total Clamp Load (Ftotal)',fmt(r.vars.find(v=>v.symbol==='Ftotal').value,3),'kip')+box('Bolt Preload Stress (σᵢ)',fmt(r.demand,4),'ksi')+box('Required Tightening Torque (T)',fmt(r.vars.find(v=>v.symbol==='T').value,2),'lbf·in')+box('Utilization Factor (UF)',fmt(uf))+sbox(r.status)}
+
+function calcBolt(){
+ if(!validPairs([['bp_area','Tensile stress area','positive'],['bp_yield','Yield strength','positive'],['bp_pct','Preload percentage','positive'],['bp_dia','Nominal diameter','positive'],['bp_k','Nut factor','positive'],['bp_count','Bolt count','positive']]))return false;
+ const A=Number(document.getElementById('bp_area').value),Sy=Number(document.getElementById('bp_yield').value),pct=Number(document.getElementById('bp_pct').value),f=pct/100,d=Number(document.getElementById('bp_dia').value),K=Number(document.getElementById('bp_k').value),cnt=Number(document.getElementById('bp_count').value),allow=Number(document.getElementById('bp_allow').value);
+ const Fy=A*Sy,Fi=f*Fy,sigma_i=Fi/A,T=K*(Fi*1000)*d,Ftotal=Fi*cnt,uf=allow>0?sigma_i/allow:NaN;
+ const vars=[variable('Aₜ','Tensile Stress Area',A,'in²','input'),variable('Sᵧ','Yield Strength',Sy,'ksi','input'),variable('f','Target Preload Fraction',f,'-','input'),variable('d','Nominal Bolt Diameter',d,'in','input'),variable('K','Nut Factor',K,'-','input'),variable('n','Number of Bolts',cnt,'-','input'),variable('Sallow','Allowable Preload Stress',allow,'ksi','input'),variable('Fᵧ','Yield Load Capacity',Fy,'kip','calculated'),variable('Fᵢ','Initial Bolt Preload Force',Fi,'kip','calculated'),variable('σᵢ','Bolt Preload Stress',sigma_i,'ksi','calculated'),variable('T','Required Tightening Torque',T,'lbf·in','calculated'),variable('Ftotal','Total Clamp Load',Ftotal,'kip','calculated'),variable('UF','Utilization Factor',uf,'-','calculated')];
+ const steps=[step('Bolt Yield Load Capacity','Yield Load Capacity (Fᵧ) = Tensile Stress Area (Aₜ) × Yield Strength (Sᵧ)',`Fᵧ = ${A} in² × ${Sy} ksi`,`Fᵧ = ${fmt(Fy,4)} kip`),
+ step('Initial Bolt Preload Force','Initial Bolt Preload Force (Fᵢ) = Target Preload Fraction (f) × Yield Load Capacity (Fᵧ)',`Fᵢ = ${f} × ${fmt(Fy,4)} kip`,`Fᵢ = ${fmt(Fi,4)} kip`),
+ step('Bolt Preload Stress','Bolt Preload Stress (σᵢ) = Initial Bolt Preload Force (Fᵢ) ÷ Tensile Stress Area (Aₜ)',`σᵢ = ${fmt(Fi,4)} kip ÷ ${A} in²`,`σᵢ = ${fmt(sigma_i,4)} ksi`),
+ step('Required Tightening Torque','Tightening Torque (T) = Nut Factor (K) × Initial Bolt Preload Force (Fᵢ in lbf) × Nominal Bolt Diameter (d)',`T = ${K} × ${fmt(Fi*1000,2)} lbf × ${d} in`,`T = ${fmt(T,2)} lbf·in`),
+ step('Total Clamp Load','Total Clamp Load (Ftotal) = Initial Bolt Preload Force (Fᵢ) × Number of Bolts (n)',`Ftotal = ${fmt(Fi,4)} kip × ${cnt}`,`Ftotal = ${fmt(Ftotal,4)} kip`),
+ step('Utilization Factor','Utilization Factor (UF) = Bolt Preload Stress (σᵢ) ÷ Allowable Preload Stress (Sallow)',allow>0?`UF = ${fmt(sigma_i,4)} ksi ÷ ${allow} ksi`:'Allowable preload stress not entered',allow>0?`UF = ${fmt(uf,3)} → ${status(uf)}`:'Not evaluated')];
+ document.getElementById('bp_results').innerHTML=box('Yield Load Capacity (Fᵧ)',fmt(Fy,3),'kip')+box('Initial Bolt Preload Force (Fᵢ)',fmt(Fi,3),'kip')+box('Total Clamp Load (Ftotal)',fmt(Ftotal,3),'kip')+box('Bolt Preload Stress (σᵢ)',fmt(sigma_i,4),'ksi')+box('Required Tightening Torque (T)',fmt(T,2),'lbf·in')+box('Utilization Factor (UF)',fmt(uf))+sbox(status(uf));
+ saveModuleResult('bolt',{name:'Bolt preload and torque',demand:sigma_i,allowable:allow,uf,unit:'ksi',status:status(uf),vars,steps});
+ persistInputs();
+ return true;
+}
+renderChrome('bolt');
+restore();
+document.querySelectorAll('input').forEach(el=>el.addEventListener('input',persistInputs));
+</script>
+</body>
+</html>

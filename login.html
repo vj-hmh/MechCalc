@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Sign in — Mechanical Calculation Toolkit</title>
+<link rel="stylesheet" href="shared.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>.login-only{padding:0}</style>
+</head>
+<body class="login-only">
+<header class="app"><div class="brand"><div><h1>Mechanical Calculation Toolkit</h1><p>Sign in to continue</p></div></div></header>
+<div class="login-wrap">
+  <!-- <div class="notice">Access is controlled by <code>users.xlsx</code>, kept in the same folder as this app, with <b>username</b> and <b>password</b> columns. The page loads it automatically — no file needs to be selected.</div> -->
+
+  <div class="login-card">
+    <div id="credState" class="credstate">Loading credentials from users.xlsx…</div>
+    <div class="field" style="margin-bottom:10px"><label>Username</label><input type="text" id="loginUser" autocomplete="username"></div>
+    <div class="field" style="margin-bottom:14px"><label>Password</label><input type="password" id="loginPass" autocomplete="current-password"></div>
+    <div id="globalError" class="errorbox"></div>
+    <button id="loginBtn" onclick="doLogin()" style="width:100%" disabled>Sign in</button>
+  </div>
+  <!-- <p class="footer">Prototype engineering aid. Results require independent engineering verification.</p> -->
+</div>
+<script>
+const q=id=>document.getElementById(id);
+const USERS_KEY='mct_users_db';
+const SESSION_KEY='mct_session';
+
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function showError(s){q('globalError').style.display='block';q('globalError').textContent=s}
+function clearError(){q('globalError').style.display='none'}
+
+function normalizeRows(rows){
+  const out={};
+  rows.forEach(r=>{
+    const keys={};Object.keys(r).forEach(k=>keys[k.trim().toLowerCase()]=k);
+    const uKey=keys['username']||keys['user']||keys['login'];
+    const pKey=keys['password']||keys['pass']||keys['pwd'];
+    if(!uKey||!pKey)return;
+    const u=String(r[uKey]??'').trim();
+    const p=String(r[pKey]??'').trim();
+    if(!u)return;
+    const nKey=keys['display_name']||keys['name'];
+    out[u.toLowerCase()]={password:p,display_name:nKey?String(r[nKey]??'').trim():u};
+  });
+  return out;
+}
+
+function setCredState(msg,ok){q('credState').textContent=msg;q('credState').className='credstate'+(ok?' ok':'')}
+function readUsersDb(){try{return JSON.parse(localStorage.getItem(USERS_KEY)||'null')}catch(e){return null}}
+
+async function loadUsers(){
+  try{
+    const res=await fetch('users.xlsx',{cache:'no-store'});
+    if(!res.ok)throw new Error('users.xlsx not found ('+res.status+')');
+    const buf=await res.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array'});
+    const sheet=wb.Sheets[wb.SheetNames[0]];
+    const rows=XLSX.utils.sheet_to_json(sheet,{defval:''});
+    const db=normalizeRows(rows);
+    const count=Object.keys(db).length;
+    if(!count){setCredState('users.xlsx was found but has no valid username/password rows.',false);return}
+    localStorage.setItem(USERS_KEY,JSON.stringify(db));
+    setCredState(`Credentials loaded — ${count} user${count===1?'':'s'} available.`,true);
+    q('loginBtn').disabled=false;
+  }catch(e){
+    console.error(e);
+    const cached=readUsersDb();
+    if(cached&&Object.keys(cached).length){
+      setCredState(`Could not reach users.xlsx (app may need to be served from a web server). Using the last successfully loaded credentials — ${Object.keys(cached).length} user(s).`,true);
+      q('loginBtn').disabled=false;
+    }else{
+      setCredState('Could not load users.xlsx. Make sure it is in the same folder as this app and that the app is served from a web server (not opened directly as a file).',false);
+    }
+  }
+}
+
+function doLogin(){
+  clearError();
+  const u=q('loginUser').value.trim();
+  const p=q('loginPass').value;
+  if(!u||!p){showError('Enter both a username and a password.');return}
+  const db=readUsersDb();
+  if(!db||!Object.keys(db).length){showError('No credentials are loaded. Confirm users.xlsx is present and reload the page.');return}
+  const rec=db[u.toLowerCase()];
+  if(!rec||rec.password!==p){showError('Username or password is incorrect.');return}
+  localStorage.setItem(SESSION_KEY,JSON.stringify({username:rec.display_name||u,ts:Date.now()}));
+  window.location.href='index.html';
+}
+q('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+loadUsers();
+</script>
+</body>
+</html>

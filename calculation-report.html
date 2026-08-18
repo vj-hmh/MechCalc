@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Calculation Report — Mechanical Calculation Toolkit</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+<header class="app" id="appHeader"></header>
+<nav class="crumbs" id="appNav"></nav>
+<main>
+<div class="card">
+<h2>Calculation Report</h2>
+<p>Variables are listed for each module. The governing formula, substitution, arithmetic and result are shown step by step for every completed calculation.</p>
+<div class="report-actions">
+ <button onclick="doPreview()">Preview / Refresh Report</button>
+ <button id="downloadBtn" class="ghost" onclick="generateWord()" disabled>Generate Word Report</button>
+ <button id="printBtn" class="ghost" onclick="doPrint()" disabled>Print / Save PDF</button>
+</div>
+<div id="previewState" class="preview-state">Preview is not current. Select <b>Preview / Refresh Report</b> before downloading or printing.</div>
+<div id="preview"></div>
+</div>
+</main>
+<div class="footer">Prototype engineering aid. Results require independent engineering verification.</div>
+<script src="shared.js"></script>
+<script>
+let ready=false;
+function doPreview(){
+ document.getElementById('preview').innerHTML=reportHtml();
+ ready=true;
+ document.getElementById('downloadBtn').disabled=false;
+ document.getElementById('printBtn').disabled=false;
+ document.getElementById('previewState').className='preview-state ready';
+ document.getElementById('previewState').textContent='Preview is current. Review the report below, then download Word or print/save as PDF.';
+}
+function doPrint(){if(!ready){showError('Preview the report before printing or saving as PDF.');return}window.print()}
+renderChrome('report');
+doPreview();
+</script>
+</body>
+</html>
