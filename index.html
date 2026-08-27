@@ -61,7 +61,8 @@ function renderTiles(){
    if(p.key==='project'){statusHtml=(d.project&&d.project.p_title)?'<span class="status PASS">SAVED</span>':'';}
    const r=(d.results||{})[p.key];
    if(r)statusHtml=`<span class="status ${r.status}">${r.status.replace('-',' ')}</span>`;
-   return `<a class="tile" href="${p.file}"><div class="tnum">${String(i+1).padStart(2,'0')}</div><h3>${esc(p.label)}</h3><p>${esc(DESCR[p.key]||'')}</p><div class="tstatus">${statusHtml}</div></a>`;
+   // return `<a class="tile" href="${p.file}"><div class="tnum">${String(i+1).padStart(2,'0')}</div><h3>${esc(p.label)}</h3><p>${esc(DESCR[p.key]||'')}</p><div class="tstatus">${statusHtml}</div></a>`;
+   return `<a class="tile" href="${p.file}"><h3>${esc(p.label)}</h3><p>${esc(DESCR[p.key]||'')}</p><div class="tstatus">${statusHtml}</div></a>`;
   }).join('');
  }
 }
