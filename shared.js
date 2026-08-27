@@ -1,7 +1,5 @@
-/* Mechanical Calculation Toolkit — shared runtime (auth, data store, nav, calc helpers) */
+/* Mechanical Calculation Toolkit — shared runtime (data store, nav, calc helpers) */
 const APP_VERSION='2.0.0 (US)';
-const SESSION_KEY='mct_session';
-const USERS_KEY='mct_users_db';
 const DATA_KEY='mct_data';
 
 const PAGES=[
@@ -16,12 +14,6 @@ const PAGES=[
  {key:'report',    file:'calculation-report.html',  label:'Calculation Report'}
 ];
 
-/* ---------- auth ---------- */
-function getSession(){try{return JSON.parse(localStorage.getItem(SESSION_KEY)||'null')}catch(e){return null}}
-function requireAuth(){const s=getSession();if(!s||!s.username){window.location.href='login.html';return null}return s}
-function logout(){localStorage.removeItem(SESSION_KEY);window.location.href='login.html'}
-function getUsersDb(){try{return JSON.parse(localStorage.getItem(USERS_KEY)||'null')}catch(e){return null}}
-
 /* ---------- shared calculation data store ---------- */
 function loadData(){try{return JSON.parse(localStorage.getItem(DATA_KEY)||'null')||{project:{},results:{}}}catch(e){return{project:{},results:{}}}}
 function saveData(d){localStorage.setItem(DATA_KEY,JSON.stringify(d))}
@@ -35,26 +27,68 @@ function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&l
 function status(uf){return Number.isFinite(uf)?(uf<=1?'PASS':'FAIL'):'NOT-EVALUATED'}
 function box(label,value,unit=''){return `<div class="result"><b>${esc(label)}</b><span>${esc(value)}</span> <small>${esc(unit)}</small></div>`}
 function sbox(s){return `<div class="result"><b>Status</b><span class="status ${s}">${s.replace('-',' ')}</span></div>`}
+function ufGauge(uf){
+ if(!Number.isFinite(uf))return '<div class="gauge"><div class="gauge-head"><span>Utilization</span><span class="gauge-val">Not evaluated</span></div><div class="gauge-track"><div class="gauge-marker" style="left:66.6%"></div></div><div class="gauge-scale"><span>0%</span><span>Allowable (100%)</span><span>150%+</span></div></div>';
+ const pass=uf<=1;const pct=Math.max(0,Math.min(uf,1.5))/1.5*100;
+ return `<div class="gauge"><div class="gauge-head"><span>Utilization vs. allowable</span><span class="gauge-val ${pass?'ok':'bad'}">${(uf*100).toFixed(1)}% ${pass?'— within limit':'— exceeds limit'}</span></div><div class="gauge-track"><div class="gauge-fill ${pass?'ok':'bad'}" style="width:${pct}%"></div><div class="gauge-marker" style="left:66.6%"></div></div><div class="gauge-scale"><span>0%</span><span>Allowable (100%)</span><span>150%+</span></div></div>`;
+}
+function miniGauge(uf){
+ if(!Number.isFinite(uf))return '<span class="small">—</span>';
+ const pass=uf<=1;const pct=Math.max(0,Math.min(uf,1.5))/1.5*100;
+ return `<div class="mini-gauge"><div class="mini-gauge-track"><div class="mini-gauge-fill ${pass?'ok':'bad'}" style="width:${pct}%"></div><div class="mini-gauge-marker"></div></div></div>`;
+}
 function variable(symbol,name,value,unit='',group='input'){return{symbol,name,value,unit,group}}
 function step(label,formula,substitution,result){return{label,formula,substitution,result}}
 function showError(s){const box=document.getElementById('globalError');if(!box)return;box.style.display='block';box.textContent=s;window.scrollTo({top:0,behavior:'smooth'})}
 function clearError(){const box=document.getElementById('globalError');if(box)box.style.display='none'}
 function validPairs(pairs){const e=[];pairs.forEach(([id,label,rule])=>{const el=document.getElementById(id);const v=Number(el.value);if(!Number.isFinite(v)||(rule==='positive'&&v<=0)||(rule==='nonnegative'&&v<0))e.push(label)});if(e.length){showError('Provide valid values for: '+e.join(', '));return false}clearError();return true}
+
+/* ---------- richer per-field validation with inline messages ----------
+ rule: {id, label, required(bool, default true), integer(bool), min, max, exclusiveMin, exclusiveMax} */
+function fieldWrap(id){const el=document.getElementById(id);return el?el.closest('.field'):null}
+function markFieldError(id,msg){const wrap=fieldWrap(id);if(!wrap)return;wrap.classList.add('invalid');let err=wrap.querySelector('.field-err');if(!err){err=document.createElement('div');err.className='field-err';wrap.appendChild(err)}err.textContent=msg}
+function clearFieldError(id){const wrap=fieldWrap(id);if(!wrap)return;wrap.classList.remove('invalid');const err=wrap.querySelector('.field-err');if(err)err.remove()}
+function validateForm(rules){
+ let ok=true;const messages=[];
+ rules.forEach(r=>{
+  clearFieldError(r.id);
+  const el=document.getElementById(r.id);if(!el)return;
+  const raw=String(el.value??'').trim();
+  const required=r.required!==false;
+  if(raw===''){if(required){markFieldError(r.id,`${r.label} is required.`);ok=false;messages.push(`${r.label} is required.`)}return}
+  if(r.type==='text')return;
+  const v=Number(raw);
+  if(!Number.isFinite(v)){markFieldError(r.id,`${r.label} must be a number.`);ok=false;messages.push(`${r.label} must be a number.`);return}
+  if(r.integer&&!Number.isInteger(v)){markFieldError(r.id,`${r.label} must be a whole number.`);ok=false;messages.push(`${r.label} must be a whole number.`);return}
+  if(r.min!==undefined&&v<r.min){markFieldError(r.id,`${r.label} must be ≥ ${r.min}.`);ok=false;messages.push(`${r.label} must be ≥ ${r.min}.`);return}
+  if(r.max!==undefined&&v>r.max){markFieldError(r.id,`${r.label} must be ≤ ${r.max}.`);ok=false;messages.push(`${r.label} must be ≤ ${r.max}.`);return}
+  if(r.exclusiveMin!==undefined&&v<=r.exclusiveMin){markFieldError(r.id,`${r.label} must be greater than ${r.exclusiveMin}.`);ok=false;messages.push(`${r.label} must be greater than ${r.exclusiveMin}.`);return}
+  if(r.exclusiveMax!==undefined&&v>=r.exclusiveMax){markFieldError(r.id,`${r.label} must be less than ${r.exclusiveMax}.`);ok=false;messages.push(`${r.label} must be less than ${r.exclusiveMax}.`);return}
+ });
+ if(ok)clearError();else showError(messages[0]+(messages.length>1?` (+${messages.length-1} more field${messages.length-1===1?'':'s'} below)`:''));
+ return{ok,messages};
+}
+function markRequiredFields(rules){rules.forEach(r=>{if(r.required!==false){const wrap=fieldWrap(r.id);if(wrap)wrap.classList.add('required')}})}
+
 function flashSaved(id){const el=document.getElementById(id);if(!el)return;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),1600)}
 
 /* ---------- page chrome ---------- */
 function renderChrome(activeKey){
- const s=requireAuth();if(!s)return null;
  const header=document.getElementById('appHeader');
- if(header){header.innerHTML=`<div class="brand"><div><h1>Mechanical Calculation Toolkit</h1><p>Mathcad-style traceable calculations in US customary units</p></div><div class="session"><span class="who">Signed in: ${esc(s.username)}</span><button class="ghost" onclick="logout()">Log out</button></div></div>`;}
+ if(header){header.innerHTML=`<div class="brand"><div><h1>Mechanical Calculation Toolkit</h1><p>Mathcad-style traceable calculations in US customary units</p></div></div>`;}
  const crumbs=document.getElementById('appNav');
  if(crumbs){crumbs.innerHTML='<a class="home" href="index.html">Dashboard</a>'+PAGES.map(p=>`<a href="${p.file}" class="${p.key===activeKey?'active':''}">${esc(p.label)}</a>`).join('');}
- return s;
 }
 
 /* ---------- report building (used by utilization-summary.html and calculation-report.html) ---------- */
-function resultTable(results){const rows=Object.values(results||{});return rows.length?`<table><tr><th>Calculation</th><th>Demand</th><th>Allowable / Capacity</th><th>UF</th><th>Status</th></tr>${rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${fmt(r.demand)} ${esc(r.unit)}</td><td>${fmt(r.allowable)} ${esc(r.unit)}</td><td>${fmt(r.uf)}</td><td>${esc(r.status)}</td></tr>`).join('')}</table>`:'<p>No completed calculations.</p>'}
-function detailedSection(key,r){const allVars=r.vars||[],inputVars=allVars.filter(v=>(v.group||'input')==='input'),calculatedVars=allVars.filter(v=>v.group==='calculated');const renderVars=list=>list.map(v=>`<div class="var-item"><div><span class="var-symbol">${esc(v.symbol)}</span> = ${esc(v.name)}</div><div class="var-value">${esc(v.value===''?'—':fmt(v.value,4))} ${esc(v.unit||'')}</div></div>`).join('');const vars=`<div class="var-group">Input Variables</div>${renderVars(inputVars)||'<p class="small">No input variables recorded.</p>'}<div class="var-group">Calculated Variables</div>${renderVars(calculatedVars)||'<p class="small">No calculated variables recorded.</p>'}`;const steps=(r.steps||[]).map((st,i)=>`<div class="step"><span class="stepno">Step ${i+1}: ${esc(st.label)}</span><br><b>Formula:</b> ${esc(st.formula)}<br><b>Substitution:</b> ${esc(st.substitution)}<br><b>Result:</b> ${esc(st.result)}</div>`).join('');return `<section id="report-${key}" class="report-module"><h3>${esc(r.name)}</h3><div class="details-row"><div class="details-left"><div class="formula-title">Formula and step-by-step calculation</div><div class="formula">${esc(r.steps?.[0]?.formula||'Formula not recorded')}</div>${steps||'<p>No steps recorded.</p>'}</div><aside class="details-right"><h4>Variable Register</h4>${vars}</aside></div></section>`}
+function resultTable(results){const rows=Object.values(results||{});return rows.length?`<table><tr><th>Calculation</th><th class="right">Demand</th><th class="right">Allowable / Capacity</th><th class="right">UF</th><th>Margin</th><th>Status</th></tr>${rows.map(r=>`<tr><td>${esc(r.name)}</td><td class="right">${fmt(r.demand)} ${esc(r.unit)}</td><td class="right">${fmt(r.allowable)} ${esc(r.unit)}</td><td class="right">${fmt(r.uf)}</td><td>${miniGauge(r.uf)}</td><td>${esc(r.status)}</td></tr>`).join('')}</table>`:'<p>No completed calculations.</p>'}
+function detailedSection(key,r){
+ const allVars=r.vars||[],inputVars=allVars.filter(v=>(v.group||'input')==='input'),calculatedVars=allVars.filter(v=>v.group==='calculated');
+ const renderVars=list=>list.map(v=>`<div class="var-item"><div><span class="var-symbol">${esc(v.symbol)}</span> = ${esc(v.name)}</div><div class="var-value">${esc(v.value===''?'—':fmt(v.value,4))} ${esc(v.unit||'')}</div></div>`).join('');
+ const vars=`<div class="var-group">Input Variables</div>${renderVars(inputVars)||'<p class="small">No input variables recorded.</p>'}<div class="var-group">Calculated Variables</div>${renderVars(calculatedVars)||'<p class="small">No calculated variables recorded.</p>'}`;
+ const steps=(r.steps||[]).map((st,i)=>`<div class="step"><div class="step-head"><span class="stepno">Step ${i+1}</span><span class="step-title">${esc(st.label)}</span></div><div class="step-row"><span class="step-tag">Formula</span><code>${esc(st.formula)}</code></div><div class="step-row"><span class="step-tag">Substitution</span><code>${esc(st.substitution)}</code></div><div class="step-row result"><span class="step-tag">Result</span><code>${esc(st.result)}</code></div></div>`).join('');
+ return `<section id="report-${key}" class="report-module"><div class="report-module-head"><h3>${esc(r.name)}</h3><span class="status ${r.status}">${r.status.replace('-',' ')}</span></div>${ufGauge(r.uf)}<div class="details-row"><div class="details-left"><div class="formula-title">Formula and step-by-step calculation</div><div class="formula">${esc(r.steps?.[0]?.formula||'Formula not recorded')}</div>${steps||'<p>No steps recorded.</p>'}</div><aside class="details-right"><h4>Variable Register</h4>${vars}</aside></div></section>`;
+}
 function reportHtml(){
  const d=loadData(),p=d.project||{},results=d.results||{};
  const rows=Object.entries(results);

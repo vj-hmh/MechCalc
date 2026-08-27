@@ -4,14 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Project Information — Mechanical Calculation Toolkit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="shared.css">
 </head>
 <body>
 <header class="app" id="appHeader"></header>
 <nav class="crumbs" id="appNav"></nav>
 <main>
+<div id="globalError" class="errorbox"></div>
 <div class="card"><h2>Project Information</h2><div class="grid">
-<div class="field"><label>Calculation title *</label><input id="p_title" value="Mechanical Calculation Report (US units)"></div>
+<div class="field"><label>Calculation title</label><input id="p_title" value="Mechanical Calculation Report (US units)"></div>
 <div class="field"><label>Calculation number</label><input id="p_number" placeholder="HO26-XXX"></div>
 <div class="field"><label>Revision</label><input id="p_rev" value="01"></div>
 <div class="field"><label>Project</label><input id="p_project"></div>
@@ -35,18 +39,21 @@
 <script src="shared.js"></script>
 <script>
 const FIELDS=['p_title','p_number','p_rev','p_project','p_equipment','p_component','p_drawing','p_prepared','p_checked','p_date','p_standard','p_loadcase','p_refs','p_assumptions'];
+const RULES=[{id:'p_title',label:'Calculation title',type:'text'}];
 function loadProject(){
  const d=loadData();const p=d.project||{};
  FIELDS.forEach(id=>{if(p[id]!==undefined)document.getElementById(id).value=p[id]});
  if(!p.p_date)document.getElementById('p_date').value=new Date().toISOString().slice(0,10);
 }
 function saveProject(){
+ if(!validateForm(RULES).ok)return;
  const d=loadData();d.project=d.project||{};
  FIELDS.forEach(id=>d.project[id]=document.getElementById(id).value);
  saveData(d);
  flashSaved('savedMsg');
 }
 renderChrome('project');
+markRequiredFields(RULES);
 loadProject();
 </script>
 </body>
