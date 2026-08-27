@@ -1,0 +1,65 @@
+{
+  "project": {
+    "p_title": "Mechanical Calculation Report (US units)",
+    "p_number": "HO26-014",
+    "p_rev": "01",
+    "p_project": "Line 4 Upgrade",
+    "p_equipment": "Clamp Assembly",
+    "p_component": "Clamp Bolt Group",
+    "p_drawing": "DWG-2201 Rev C",
+    "p_prepared": "J. Smith",
+    "p_checked": "A. Rao",
+    "p_date": "2026-08-27",
+    "p_standard": "ASME BTH-1",
+    "p_loadcase": "LC1",
+    "p_refs": "ASME BTH-1-2020\nVendor datasheet DS-4471",
+    "p_assumptions": "Static load only.\nFriction/nut factor per vendor datasheet."
+  },
+  "inputs": {
+    "bp_area": "0.606",
+    "bp_yield": "120",
+    "bp_pct": "70",
+    "bp_dia": "0.75",
+    "bp_k": "0.18",
+    "bp_count": "4",
+    "bp_allow": "84",
+
+    "ts_load": "12.5",
+    "ts_area": "3.2",
+    "ts_count": "1",
+    "ts_factor": "1",
+    "ts_allow": "24",
+
+    "th_designation": "3/4-10 UNC",
+    "th_load": "12.5",
+    "th_extarea": "0.85",
+    "th_extallow": "18",
+    "th_intarea": "0.90",
+    "th_intallow": "18",
+    "th_eng": "1.125",
+    "th_source": "Machinery's Handbook thread shear area eq.",
+
+    "br_force": "9.4",
+    "br_area": "1.2",
+    "br_allow": "36",
+    "br_basis": "Projected bore area, clevis pin",
+
+    "ms_method": "hoop",
+    "ms_force": "",
+    "ms_area": "",
+    "ms_pressure": "150",
+    "ms_dia": "8",
+    "ms_thk": "0.25",
+    "ms_allow": "20",
+    "ms_reference": "ASME BPVC Sec. VIII Div.1",
+
+    "hy_bore": "4",
+    "hy_rod": "1.75",
+    "hy_pcap": "2000",
+    "hy_prod": "0",
+    "hy_eff": "92",
+    "hy_count": "1",
+    "hy_required": "18"
+  },
+  "results": {}
+}

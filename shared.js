@@ -21,6 +21,43 @@ function saveModuleResult(key,data){const d=loadData();d.results=d.results||{};d
 function saveProjectField(id,value){const d=loadData();d.project=d.project||{};d.project[id]=value;saveData(d)}
 function clearAllData(){localStorage.removeItem(DATA_KEY)}
 
+/* ---------- JSON export / import of the whole project (project info + every module's inputs + results) ---------- */
+function downloadJson(filename,obj){
+ const blob=new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();URL.revokeObjectURL(a.href);
+}
+function safeFileToken(s,fallback){const t=String(s||'').trim().replace(/[^a-z0-9_\-]+/gi,'_');return t||fallback}
+function exportProjectJson(){
+ const d=loadData();const p=d.project||{};
+ const base=safeFileToken(p.p_number,'mechanical_calculation');
+ const rev=safeFileToken(p.p_rev,'01');
+ downloadJson(`${base}_${rev}_data.json`,d);
+}
+function validateImportedData(obj){
+ if(!obj||typeof obj!=='object'||Array.isArray(obj))return 'The file does not contain a valid JSON object.';
+ if(obj.project!==undefined&&(typeof obj.project!=='object'||Array.isArray(obj.project)))return 'The "project" section in the JSON is not valid.';
+ if(obj.inputs!==undefined&&(typeof obj.inputs!=='object'||Array.isArray(obj.inputs)))return 'The "inputs" section in the JSON is not valid.';
+ if(obj.results!==undefined&&(typeof obj.results!=='object'||Array.isArray(obj.results)))return 'The "results" section in the JSON is not valid.';
+ return null;
+}
+async function importProjectJsonFile(file,statusElId){
+ const statusEl=statusElId?document.getElementById(statusElId):null;
+ try{
+  const text=await file.text();
+  const obj=JSON.parse(text);
+  const err=validateImportedData(obj);
+  if(err){if(statusEl)statusEl.textContent=err;return false}
+  const data={project:obj.project||{},inputs:obj.inputs||{},results:obj.results||{}};
+  saveData(data);
+  if(statusEl)statusEl.textContent='Data imported. Open Project Information or any calculation page — fields and results are already filled in.';
+  return true;
+ }catch(e){
+  console.error(e);
+  if(statusEl)statusEl.textContent='Could not read that file. Make sure it is valid JSON exported from this toolkit.';
+  return false;
+ }
+}
+
 /* ---------- formatting / small helpers ---------- */
 function fmt(v,d=3){return Number.isFinite(Number(v))&&v!==''?Number(v).toLocaleString(undefined,{maximumFractionDigits:d}):'—'}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}

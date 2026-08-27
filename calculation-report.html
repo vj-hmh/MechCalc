@@ -14,6 +14,18 @@
 <nav class="crumbs" id="appNav"></nav>
 <main>
 <div class="card">
+  <h3>Project data (JSON)</h3>
+  <p class="small">Import a project JSON to refill every page before regenerating this report, or export the current data (including these results) to save alongside the report.</p>
+  <div class="grid">
+    <div class="field"><label>Import project JSON</label><input type="file" id="importJsonFile" accept="application/json,.json"></div>
+  </div>
+  <div class="report-actions">
+    <button onclick="doImportJson()">Import JSON</button>
+    <button class="ghost" onclick="exportProjectJson()">Export Current Data as JSON</button>
+  </div>
+  <div id="jsonStatus" class="small"></div>
+</div>
+<div class="card">
 <h2>Calculation Report</h2>
 <p>Variables are listed for each module. The governing formula, substitution, arithmetic and result are shown step by step for every completed calculation.</p>
 <div class="report-actions">
@@ -38,6 +50,14 @@ function doPreview(){
  document.getElementById('previewState').textContent='Preview is current. Review the report below, then download Word or print/save as PDF.';
 }
 function doPrint(){if(!ready){showError('Preview the report before printing or saving as PDF.');return}window.print()}
+async function doImportJson(){
+ const input=document.getElementById('importJsonFile');
+ const file=input.files[0];
+ const statusEl=document.getElementById('jsonStatus');
+ if(!file){statusEl.textContent='Choose a JSON file first.';return}
+ const ok=await importProjectJsonFile(file,'jsonStatus');
+ if(ok){input.value='';doPreview();}
+}
 renderChrome('report');
 doPreview();
 </script>

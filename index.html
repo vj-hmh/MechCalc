@@ -20,6 +20,18 @@
   <div class="tiles" id="tiles"></div>
 </div>
 <div class="card">
+  <h3>Project data (JSON)</h3>
+  <p class="small">Import a previously exported JSON file to auto-populate the project info and every calculation page's fields and results in one go. After importing, open any page — its fields (and any saved result) are already filled in. Change one field, recalculate, then export again to save the updated project and get an updated report.</p>
+  <div class="grid">
+    <div class="field"><label>Import project JSON</label><input type="file" id="importJsonFile" accept="application/json,.json"></div>
+  </div>
+  <div class="report-actions">
+    <button onclick="doImportJson()">Import JSON</button>
+    <button class="ghost" onclick="exportProjectJson()">Export Current Data as JSON</button>
+  </div>
+  <div id="jsonStatus" class="small"></div>
+</div>
+<div class="card">
   <h3>Session data</h3>
   <p class="small">All entered data and results are stored in this browser only (nothing is sent anywhere). Use Reset to clear everything and start a new calculation set.</p>
   <button class="danger" onclick="resetAll()">Reset all project data</button>
@@ -57,6 +69,14 @@ function resetAll(){
  if(!confirm('Clear all entered project data and calculation results in this browser?'))return;
  clearAllData();
  renderTiles();
+}
+async function doImportJson(){
+ const input=document.getElementById('importJsonFile');
+ const file=input.files[0];
+ const statusEl=document.getElementById('jsonStatus');
+ if(!file){statusEl.textContent='Choose a JSON file first.';return}
+ const ok=await importProjectJsonFile(file,'jsonStatus');
+ if(ok){renderTiles();input.value='';}
 }
 renderChrome('');
 renderTiles();
