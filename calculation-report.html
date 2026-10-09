@@ -8,11 +8,43 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="shared.css">
+<style>
+/* ---------- Mathcad-style worksheet ---------- */
+.mc-sheet{background:#fff;color:#111;border:1px solid var(--line-soft);border-radius:var(--radius-sm);padding:16px 24px 20px;margin:10px 0 22px;font-family:"Cambria Math",Cambria,"Times New Roman",serif;font-size:17px;line-height:1.35;overflow-x:auto}
+.mc-note{font-family:var(--font-body);font-size:12px;font-weight:600;color:var(--accent-deep);margin:16px 0 2px}
+.mc-line{display:flex;align-items:center;gap:24px;margin:5px 0 5px 18px;min-height:30px}
+.mc-expr{display:inline-flex;align-items:center;flex-wrap:nowrap}
+.mc-text{font-family:var(--font-body);font-size:13px;color:var(--graphite)}
+.mc-ref{margin-left:auto;font-family:var(--font-body);font-size:12px;color:var(--muted);white-space:nowrap}
+.mv{font-style:italic}
+.mv sub{font-size:.68em;vertical-align:-.35em;font-style:italic}
+.mt{font-style:normal}
+.mu{font-style:normal;color:var(--accent-deep);margin-left:.25em}
+.mop{margin:0 .28em;font-style:normal}
+.mdef{margin:0 .35em;font-style:normal;font-weight:600}
+.mres{background:var(--accent-soft);border-radius:3px;padding:1px 6px;font-weight:700}
+.mc-expr .status{margin-left:.2em;font-size:11px}
+.mfrac{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;margin:0 .15em}
+.mfrac>.num{padding:0 .25em .08em;border-bottom:1px solid #111;display:inline-flex;align-items:center}
+.mfrac>.den{padding:.08em .25em 0;display:inline-flex;align-items:center}
+.mbr{display:inline-flex;align-items:stretch;margin:0 .05em}
+.mbr>.l,.mbr>.r{width:.32em;border:1.3px solid #111;flex:none}
+.mbr.round>.l{border-right:none;border-radius:.45em 0 0 .45em}
+.mbr.round>.r{border-left:none;border-radius:0 .45em .45em 0}
+.mbr.square>.l{border-right:none}
+.mbr.square>.r{border-left:none}
+.mbr>.in{display:inline-flex;align-items:center;padding:.12em .18em}
+.msup{display:inline-flex;align-items:flex-start}
+.msup>.e{font-size:.7em;margin-top:-.2em;margin-left:.05em}
+.status.CALCULATED{background:var(--accent-soft);color:var(--accent-deep);border:1px solid var(--line)}
+@media print{.mc-sheet{border:none;padding:0;overflow:visible}.report-module{break-inside:auto}.mc-line{break-inside:avoid}}
+</style>
 </head>
 <body>
 <header class="app" id="appHeader"></header>
 <nav class="crumbs" id="appNav"></nav>
 <main>
+<div id="globalError" class="errorbox"></div>
 <div class="card">
   <h3>Project data (JSON)</h3>
   <p class="small">Import a project JSON to refill every page before regenerating this report, or export the current data (including these results) to save alongside the report.</p>
@@ -27,10 +59,10 @@
 </div>
 <div class="card">
 <h2>Calculation Report</h2>
-<p>Variables are listed for each module. The governing formula, substitution, arithmetic and result are shown step by step for every completed calculation.</p>
+<p>Each calculation is shown as one continuous worksheet: input definitions, governing equations, numerical substitution and results.</p>
 <div class="report-actions">
  <button onclick="doPreview()">Preview / Refresh Report</button>
- <button id="downloadBtn" class="ghost" onclick="generateWord()" disabled>Generate Word Report</button>
+ <button id="downloadBtn" class="ghost" onclick="doWord()" disabled>Generate Word Report</button>
  <button id="printBtn" class="ghost" onclick="doPrint()" disabled>Print / Save PDF</button>
 </div>
 <div id="previewState" class="preview-state">Preview is not current. Select <b>Preview / Refresh Report</b> before downloading or printing.</div>
@@ -39,6 +71,9 @@
 </main>
 <div class="footer">Prototype engineering aid. Results require independent engineering verification.</div>
 <script src="shared.js"></script>
+<!-- Word (.docx) export library: local copy first, CDN as backup -->
+<script src="docx.iife.js"></script>
+<script>if(!window.docx)document.write('<script src="https://unpkg.com/docx@9.6.1/dist/index.iife.js"><\/script>')</script>
 <script>
 let ready=false;
 function doPreview(){
@@ -48,6 +83,10 @@ function doPreview(){
  document.getElementById('printBtn').disabled=false;
  document.getElementById('previewState').className='preview-state ready';
  document.getElementById('previewState').textContent='Preview is current. Review the report below, then download Word or print/save as PDF.';
+}
+async function doWord(){
+ if(!ready){showError('Preview the report before generating the Word report.');return}
+ try{await generateWord()}catch(e){console.error(e);showError('Word report could not be generated: '+e.message)}
 }
 function doPrint(){if(!ready){showError('Preview the report before printing or saving as PDF.');return}window.print()}
 async function doImportJson(){
