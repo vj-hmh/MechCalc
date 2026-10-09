@@ -53,13 +53,15 @@ const val=id=>document.getElementById(id).value;
 const getV=(r,s)=>r.vars.find(v=>v.symbol===s).value;
 
 function resultsHTML(r){
- return box('Thread Pitch (P)',fmt(getV(r,'P'),5),'in')
+ const torque=`<div class="torque-hero" style="grid-column:1/-1;border:2px solid #0b5cad;background:#eaf3fc;border-radius:10px;padding:16px 20px;margin-bottom:8px">
+<div style="font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#0b5cad">Make-up Torque (τ) — API 6A Eq. H.3</div>
+<div style="font-family:'IBM Plex Mono',monospace;font-size:32px;font-weight:600;color:#0a2540;margin-top:4px">${fmt(getV(r,'τ_ft'),1)} <span style="font-size:18px;font-weight:500">ft·lbf</span></div>
+</div>`;
+ return torque
+ +box('Thread Pitch (P)',fmt(getV(r,'P'),5),'in')
  +box('Tensile Stress Area (Aₛ)',fmt(getV(r,'Aₛ'),4),'in²')
  +box('Bolt Stress (σ)',fmt(getV(r,'σ'),3),'ksi')
- +box('Bolt Load per Bolt (F)',fmt(getV(r,'F')/1000,3),'kip')
- +box('Make-up Torque (τ)',fmt(getV(r,'τ'),1),'lbf·in')
- +box('Make-up Torque (τ)',fmt(getV(r,'τ_ft'),1),'ft·lbf')
- +box('Utilization Factor (UF)',fmt(r.uf))+sbox(r.status)+ufGauge(r.uf);
+ +box('Bolt Load (F)',fmt(getV(r,'F')/1000,3),'kip');
 }
 function restore(){const d=loadData();const saved=(d.results||{}).bolt;const inputs=(d.inputs||{});FIELDS.forEach(id=>{if(inputs[id]!==undefined)document.getElementById(id).value=inputs[id]});if(saved&&saved.vars&&saved.vars.some(v=>v.symbol==='τ'))document.getElementById('bp_results').innerHTML=resultsHTML(saved)}
 function persistInputs(){const d=loadData();d.inputs=d.inputs||{};FIELDS.forEach(id=>d.inputs[id]=val(id));saveData(d)}
