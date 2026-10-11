@@ -15,7 +15,7 @@
 <main>
 <div id="globalError" class="errorbox"></div>
 <div class="card"><h2>Bearing Stress</h2>
-<div class="formula">Bearing Stress: σ<sub>b</sub> = F ÷ A<sub>p</sub><br>Utilization Factor: UF = σ<sub>b</sub> ÷ S<sub>allow</sub></div>
+<div id="formulaBox"></div>
 <div class="grid">
 <div class="field"><label>Bearing/contact force, F (kip)</label><input type="number" id="br_force" step="any"></div>
 <div class="field"><label>Projected bearing area, Ap (in²)</label><input type="number" id="br_area" step="any"></div>
@@ -23,41 +23,40 @@
 <div class="field"><label>Area basis / description</label><input id="br_basis"></div>
 </div>
 <p><button class="calcbtn" onclick="calcBearing()">Calculate Bearing Stress</button></p>
-<div id="br_results" class="results"></div>
+<div id="results" class="results"></div>
+<div id="sheet"></div>
 <p class="jump"><a href="calculation-report.html"><button class="ghost">View in Calculation Report</button></a></p>
 </div>
 </main>
 <div class="footer">Prototype engineering aid. Results require independent engineering verification.</div>
 <script src="shared.js"></script>
 <script>
-const FIELDS=['br_force','br_area','br_allow','br_basis'];
-const RULES=[
- {id:'br_force',label:'Bearing/contact force',min:0},
- {id:'br_area',label:'Projected bearing area',exclusiveMin:0},
- {id:'br_allow',label:'Allowable bearing stress',exclusiveMin:0,max:400}
-];
+const {v:V,q:Q,r:R,f:Fr,p:Pw,br:Br,o:Op,n:Nm,c:Ct,fn:Fn,tx:Tx}=M;const PI=M.pi;
 const val=id=>document.getElementById(id).value;
-function resultsHTML(r){return box('Bearing Stress (σb)',fmt(r.demand,4),'ksi')+box('Allowable (Sallow)',fmt(r.allowable),'ksi')+box('Utilization Factor (UF)',fmt(r.uf))+sbox(r.status)+ufGauge(r.uf)}
-function restore(){const d=loadData();const inputs=(d.inputs||{});FIELDS.forEach(id=>{if(inputs[id]!==undefined)document.getElementById(id).value=inputs[id]});const saved=(d.results||{}).bearing;if(saved)document.getElementById('br_results').innerHTML=resultsHTML(saved)}
+const num=id=>Number(val(id));
+function restoreInputs(fields){const d=loadData(),inp=d.inputs||{};fields.forEach(id=>{if(inp[id]!==undefined)document.getElementById(id).value=inp[id]})}
 function persistInputs(){const d=loadData();d.inputs=d.inputs||{};FIELDS.forEach(id=>d.inputs[id]=val(id));saveData(d)}
+
+const FIELDS=['br_force','br_area','br_allow','br_basis'];
+const RULES=[{id:'br_force',label:'Bearing/contact force',min:0},{id:'br_area',label:'Projected bearing area',exclusiveMin:0},{id:'br_allow',label:'Allowable bearing stress',exclusiveMin:0,max:400}];
+const EQ={sb:Fr(V('F'),V('A','p')),uf:Fr(V('σ','b'),V('S','allow'))};
+renderFormulaBox('formulaBox',[{lhs:V('σ','b'),eq:EQ.sb,ref:'Bearing stress'},{lhs:V('UF'),eq:EQ.uf,ref:'Utilization factor'}]);
+function resultsHTML(r){return box('Bearing Stress (σb)',fmt(r.demand,4),'ksi')+box('Allowable (Sallow)',fmt(r.allowable),'ksi')+box('Utilization Factor (UF)',fmt(r.uf))+sbox(r.status)+ufGauge(r.uf)}
 function calcBearing(){
  if(!validateForm(RULES).ok)return false;
- const F=Number(val('br_force')),A=Number(val('br_area')),allow=Number(val('br_allow'));
- const stress=F/A,uf=stress/allow;
- const vars=[variable('F','Bearing / Contact Force',F,'kip','input'),variable('Aₚ','Projected Bearing Area',A,'in²','input'),variable('Sallow','Allowable Bearing Stress',allow,'ksi','input'),variable('Basis','Area Basis / Description',val('br_basis'),'','input'),variable('σb','Bearing Stress',stress,'ksi','calculated'),variable('UF','Utilization Factor',uf,'-','calculated')];
- const steps=[
-  step('Bearing Stress','σb = F ÷ Aₚ',`σb = ${F} kip ÷ ${A} in²`,`σb = ${fmt(stress,4)} ksi`),
-  step('Utilization Factor','UF = σb ÷ Sallow',`UF = ${fmt(stress,4)} ksi ÷ ${allow} ksi`,`UF = ${fmt(uf,3)} → ${status(uf)}`)];
- const result={name:'Bearing stress',demand:stress,allowable:allow,uf,unit:'ksi',status:status(uf),vars,steps};
- document.getElementById('br_results').innerHTML=resultsHTML(result);
- saveModuleResult('bearing',result);
- persistInputs();
- return true;
+ const F=num('br_force'),A=num('br_area'),S=num('br_allow'),sb=F/A,uf=sb/S;
+ const vars=[variable('F','Bearing / contact force',F,'kip','input',V('F')),variable('Ap','Projected bearing area',A,'in²','input',V('A','p')),variable('Sallow','Allowable bearing stress',S,'ksi','input',V('S','allow')),variable('Basis','Area basis / description',val('br_basis'),'','input',Tx('Basis')),variable('σb','Bearing stress',sb,'ksi','calculated'),variable('UF','Utilization factor',uf,'-','calculated')];
+ const steps=[step('Bearing stress',V('σ','b'),EQ.sb,Fr(Q(F,'kip'),Q(A,'in²')),Q(sb,'ksi')),
+  step('Utilization factor',V('UF'),EQ.uf,Fr(Q(sb,'ksi'),Q(S,'ksi')),R(Nm(uf,3),Op('→'),Tx(status(uf))))];
+ const result={name:'Bearing stress',demand:sb,allowable:S,uf,unit:'ksi',status:status(uf),vars,steps};
+ show(result);saveModuleResult('bearing',result);persistInputs();return true;
 }
+
+function show(result){document.getElementById('results').innerHTML=resultsHTML(result);document.getElementById('sheet').innerHTML=detailedSection('bearing',result)}
+function restore(){restoreInputs(FIELDS);const s=(loadData().results||{}).bearing;if(s)show(s)}
 renderChrome('bearing');
-markRequiredFields(RULES);
-restore();
-document.querySelectorAll('input').forEach(el=>el.addEventListener('input',persistInputs));
+markRequiredFields(RULES);restore();
+document.querySelectorAll('input,select').forEach(el=>el.addEventListener('input',persistInputs));
 </script>
 </body>
 </html>

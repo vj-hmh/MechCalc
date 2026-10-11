@@ -15,12 +15,7 @@
 <main>
 <div id="globalError" class="errorbox"></div>
 <div class="card"><h2>Bolt Preload and Torque — API 6A Annex H</h2>
-<div class="formula">
-(H.1) Tensile Stress Area: A<sub>s</sub> = ¼ × π × [D − (0.9743 × P)]²<br>
-(H.2) Bolt Load: F = σ × A<sub>s</sub><br>
-(H.3) Make-up Torque: τ = { F·E·[P + (π·f·E / cos(π/6))] } ÷ { 2·[π·E − (P·f / cos(π/6))] } + F·f·[(H + D + K) / 4]<br>
-where P = 1 / threads per inch; H = 1.5·D + 0.125 in (hex size); K = 0.125 in (nut internal chamfer)
-</div>
+<div id="formulaBox"></div>
 <div class="grid">
 <div class="field"><label>Thread major diameter, D (in)</label><input type="number" id="bp_dia" step="any"></div>
 <div class="field"><label>Threads per inch, n (TPI)</label><input type="number" id="bp_tpi" step="any"></div>
@@ -30,13 +25,20 @@ where P = 1 / threads per inch; H = 1.5·D + 0.125 in (hex size); K = 0.125 in (
 <div class="field"><label>Target bolt stress (% of Sy)</label><input type="number" id="bp_pct" value="50" step="any"></div>
 </div>
 <p><button class="calcbtn" onclick="calcBolt()">Calculate Bolt Preload</button></p>
-<div id="bp_results" class="results"></div>
+<div id="results" class="results"></div>
+<div id="sheet"></div>
 <p class="jump"><a href="calculation-report.html"><button class="ghost">View in Calculation Report</button></a></p>
 </div>
 </main>
 <div class="footer">Prototype engineering aid. Results require independent engineering verification.</div>
 <script src="shared.js"></script>
 <script>
+const {v:V,q:Q,r:R,f:Fr,p:Pw,br:Br,o:Op,n:Nm,c:Ct,fn:Fn,tx:Tx}=M;const PI=M.pi;
+const val=id=>document.getElementById(id).value;
+const num=id=>Number(val(id));
+function restoreInputs(fields){const d=loadData(),inp=d.inputs||{};fields.forEach(id=>{if(inp[id]!==undefined)document.getElementById(id).value=inp[id]})}
+function persistInputs(){const d=loadData();d.inputs=d.inputs||{};FIELDS.forEach(id=>d.inputs[id]=val(id));saveData(d)}
+
 const FIELDS=['bp_dia','bp_tpi','bp_e','bp_f','bp_yield','bp_pct'];
 const RULES=[
  {id:'bp_dia',label:'Thread major diameter (D)',exclusiveMin:0,max:24},
@@ -44,68 +46,78 @@ const RULES=[
  {id:'bp_e',label:'Pitch diameter (E)',required:false,min:0,max:24},
  {id:'bp_f',label:'Friction coefficient (f)',exclusiveMin:0,max:1},
  {id:'bp_yield',label:'Yield strength (Sy)',exclusiveMin:0,max:400},
- {id:'bp_pct',label:'Target bolt stress (%)',exclusiveMin:0,max:100}
-];
-const C30=Math.cos(Math.PI/6);
-const val=id=>document.getElementById(id).value;
-const getV=(r,s)=>r.vars.find(v=>v.symbol===s).value;
+ {id:'bp_pct',label:'Target bolt stress (%)',exclusiveMin:0,max:100}];
+const API='API 6A Annex H';
+const COS=Fn('cos',Fr(PI,Nm(6)));
+/* symbolic equations (shared by the formula box and the report) */
+const EQ={
+ P:Fr(Nm(1),V('n')),
+ E:R(V('D'),Op('−'),Nm('0.649519'),Op('·'),V('P')),
+ H:R(Nm(1.5),Op('·'),V('D'),Op('+'),Nm(0.125),M.u('in')),
+ As:R(Fr(Nm(1),Nm(4)),Op('·'),PI,Op('·'),Pw(Br(R(V('D'),Op('−'),Br(R(Nm(0.9743),Op('·'),V('P')))),'['),Nm(2))),
+ sig:R(V('k'),Op('·'),V('S','y')),
+ F:R(V('σ'),Op('·'),V('A','s')),
+ tau:R(Fr(R(V('F'),Op('·'),V('E'),Op('·'),Br(R(V('P'),Op('+'),Fr(R(PI,Op('·'),V('f'),Op('·'),V('E')),COS)),'[')),
+           R(Nm(2),Op('·'),Br(R(PI,Op('·'),V('E'),Op('−'),Fr(R(V('P'),Op('·'),V('f')),COS)),'['))),
+       Op('+'),V('F'),Op('·'),V('f'),Op('·'),Br(Fr(R(V('H'),Op('+'),V('D'),Op('+'),V('K')),Nm(4)),'[')),
+ tauft:Fr(V('τ'),Nm(12))
+};
+renderFormulaBox('formulaBox',[
+ {lhs:V('A','s'),eq:EQ.As,ref:API+', Eq. (H.1)'},
+ {lhs:V('F'),eq:EQ.F,ref:API+', Eq. (H.2)'},
+ {lhs:V('τ'),eq:EQ.tau,ref:API+', Eq. (H.3)'},
+ {lhs:V('P'),eq:EQ.P,ref:'Thread pitch'},
+ {lhs:V('H'),eq:EQ.H,ref:'Hex size (nut);  K = 0.125 in nut internal chamfer'}]);
 function resultsHTML(r){
- const torque=`<div class="torque-hero" style="grid-column:1/-1;border:2px solid #0b5cad;background:#eaf3fc;border-radius:10px;padding:16px 20px;margin-bottom:8px">
+ const g=s=>r.vars.find(v=>v.symbol===s).value;
+ return `<div style="grid-column:1/-1;border:2px solid #0b5cad;background:#eaf3fc;border-radius:10px;padding:16px 20px;margin-bottom:8px">
 <div style="font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#0b5cad">Make-up Torque (τ) — API 6A Eq. H.3</div>
-<div style="font-family:'IBM Plex Mono',monospace;font-size:32px;font-weight:600;color:#0a2540;margin-top:4px">${fmt(getV(r,'τ_ft'),1)} <span style="font-size:18px;font-weight:500">ft·lbf</span></div>
-</div>`;
- return torque
- +box('Thread Pitch (P)',fmt(getV(r,'P'),5),'in')
- +box('Tensile Stress Area (Aₛ)',fmt(getV(r,'Aₛ'),4),'in²')
- +box('Bolt Stress (σ)',fmt(getV(r,'σ'),3),'ksi')
- +box('Bolt Load (F)',fmt(getV(r,'F')/1000,3),'kip');
+<div style="font-family:'IBM Plex Mono',monospace;font-size:32px;font-weight:600;color:#0a2540;margin-top:4px">${fmt(g('τft'),1)} <span style="font-size:18px;font-weight:500">ft·lbf</span></div></div>`
+ +box('Thread Pitch (P)',fmt(g('P'),5),'in')+box('Tensile Stress Area (Aₛ)',fmt(g('As'),4),'in²')+box('Bolt Stress (σ)',fmt(g('σ'),3),'ksi')+box('Bolt Load (F)',fmt(g('F'),0),'lbf');
 }
-function restore(){const d=loadData();const saved=(d.results||{}).bolt;const inputs=(d.inputs||{});FIELDS.forEach(id=>{if(inputs[id]!==undefined)document.getElementById(id).value=inputs[id]});if(saved&&saved.vars&&saved.vars.some(v=>v.symbol==='τ'))document.getElementById('bp_results').innerHTML=resultsHTML(saved)}
-function persistInputs(){const d=loadData();d.inputs=d.inputs||{};FIELDS.forEach(id=>d.inputs[id]=val(id));saveData(d)}
 function calcBolt(){
  if(!validateForm(RULES).ok)return false;
- const D=Number(val('bp_dia')),n=Number(val('bp_tpi')),f=Number(val('bp_f')),Sy=Number(val('bp_yield')),pct=Number(val('bp_pct'));
- const P=1/n;
- const eUser=val('bp_e')!=='' && Number(val('bp_e'))>0;
- const E=eUser?Number(val('bp_e')):D-0.649519*P;
- const H=1.5*D+0.125, Kc=0.125;
+ const D=num('bp_dia'),n=num('bp_tpi'),f=num('bp_f'),Sy=num('bp_yield'),k=num('bp_pct')/100,K=0.125;
+ const P=1/n,eUser=val('bp_e')!==''&&num('bp_e')>0,E=eUser?num('bp_e'):D-0.649519*P,H=1.5*D+K;
  if(E<=0||E>=D){showError('Pitch diameter E must be greater than 0 and less than D.');return false}
- // H.1
- const As=0.25*Math.PI*Math.pow(D-0.9743*P,2);
- // H.2
- const sigma=(pct/100)*Sy;            // ksi
- const F=sigma*1000*As;               // lbf
- // H.3
- const num=F*E*(P+(Math.PI*f*E)/C30);
- const den=2*(Math.PI*E-(P*f)/C30);
- const tThread=num/den;               // lbf·in
- const tNut=F*f*((H+D+Kc)/4);         // lbf·in
- const tau=tThread+tNut, tauFt=tau/12;
+ const c=Math.cos(Math.PI/6);
+ const As=0.25*Math.PI*(D-0.9743*P)**2, sig=k*Sy, F=sig*1000*As;
+ const t1=F*E*(P+Math.PI*f*E/c)/(2*(Math.PI*E-P*f/c)), t2=F*f*((H+D+K)/4), tau=t1+t2, tauft=tau/12;
  const vars=[
-  variable('D','Thread Major Diameter',D,'in','input'),
-  variable('n','Threads per Inch',n,'TPI','input'),
-  variable('P','Thread Pitch',P,'in','calculated'),
-  variable('E','Pitch Diameter of Thread',E,'in',eUser?'input':'calculated'),
-  variable('f','Friction Coefficient',f,'-','input'),
-  variable('H','Hex Size (Nut)',H,'in','calculated'),
-  variable('K','Nut Internal Chamfer',Kc,'in','input'),
-  variable('Sᵧ','Yield Strength',Sy,'ksi','input'),
-  variable('%Sᵧ','Target Bolt Stress Fraction',pct/100,'-','input'),
-  variable('Aₛ','Tensile Stress Area',As,'in²','calculated'),
-  variable('σ','Bolt Stress',sigma,'ksi','calculated'),
-  variable('F','Bolt Load per Bolt',F,'lbf','calculated'),
-  variable('τ','Make-up Torque',tau,'lbf·in','calculated'),
-  variable('τ_ft','Make-up Torque',tauFt,'ft·lbf','calculated')];
- const result={name:'Bolt preload and make-up torque (API 6A Annex H)',demand:sigma,unit:'ksi',status:'CALCULATED',noUF:true,vars};
- document.getElementById('bp_results').innerHTML=resultsHTML(result);
- saveModuleResult('bolt',result);
- persistInputs();
- return true;
+  variable('D','Thread major diameter',D,'in','input',V('D')),
+  variable('n','Threads per inch',n,'in⁻¹','input',V('n')),
+  variable('E','Pitch diameter of thread',eUser?E:'','in','input',V('E')),
+  variable('f','Friction coefficient',f,'-','input',V('f')),
+  variable('Sy','Yield strength',Sy,'ksi','input',V('S','y')),
+  variable('k','Target bolt stress, fraction of Sᵧ',k,'-','input',V('k')),
+  variable('K','Nut internal chamfer',K,'in','input',V('K')),
+  variable('P','Thread pitch',P,'in','calculated'),variable('Euse','Pitch diameter used',E,'in','calculated'),
+  variable('H','Hex size',H,'in','calculated'),variable('As','Tensile stress area',As,'in²','calculated'),
+  variable('σ','Bolt stress',sig,'ksi','calculated'),variable('F','Bolt load',F,'lbf','calculated'),
+  variable('τ','Make-up torque',tau,'lbf·in','calculated'),variable('τft','Make-up torque',tauft,'ft·lbf','calculated')];
+ const steps=[
+  step('Thread pitch',V('P'),EQ.P,Fr(Nm(1),Q(n,'in⁻¹')),Q(P,'in',5),API)];
+ if(!eUser)steps.push(step('Pitch diameter of thread (basic UN form)',V('E'),EQ.E,R(Q(D,'in'),Op('−'),Nm('0.649519'),Op('·'),Q(P,'in',5)),Q(E,'in',5)));
+ steps.push(
+  step('Hex size (nut)',V('H'),EQ.H,R(Nm(1.5),Op('·'),Q(D,'in'),Op('+'),Q(0.125,'in')),Q(H,'in'),API),
+  step('Tensile stress area',V('A','s'),EQ.As,R(Fr(Nm(1),Nm(4)),Op('·'),PI,Op('·'),Pw(Br(R(Q(D,'in'),Op('−'),Br(R(Nm(0.9743),Op('·'),Q(P,'in',5)))),'['),Nm(2))),Q(As,'in²'),API+', Eq. (H.1)'),
+  step('Bolt stress',V('σ'),EQ.sig,R(Nm(k),Op('·'),Q(Sy,'ksi')),Q(sig,'ksi',3)),
+  step('Bolt load',V('F'),EQ.F,R(Q(sig*1000,'psi',1),Op('·'),Q(As,'in²')),Q(F,'lbf',0),API+', Eq. (H.2)'),
+  step('Make-up torque',V('τ'),EQ.tau,
+   R(Fr(R(Nm(F,0),Op('·'),Nm(E,5),Op('·'),Br(R(Nm(P,5),Op('+'),Fr(R(PI,Op('·'),Nm(f),Op('·'),Nm(E,5)),COS)),'[')),
+        R(Nm(2),Op('·'),Br(R(PI,Op('·'),Nm(E,5),Op('−'),Fr(R(Nm(P,5),Op('·'),Nm(f)),COS)),'['))),
+     Op('+'),Nm(F,0),Op('·'),Nm(f),Op('·'),Br(Fr(R(Nm(H,4),Op('+'),Nm(D),Op('+'),Nm(K)),Nm(4)),'[')),
+   Q(tau,'lbf·in',1),API+', Eq. (H.3)'),
+  step('Make-up torque in ft·lbf',V('τ','ft'),EQ.tauft,Fr(Q(tau,'lbf·in',1),Q(12,'in/ft')),Q(tauft,'ft·lbf',1)));
+ const result={name:'Bolt preload and make-up torque (API 6A Annex H)',demand:tauft,allowable:'',uf:NaN,unit:'ft·lbf',status:'CALCULATED',vars,steps};
+ show(result);saveModuleResult('bolt',result);persistInputs();return true;
 }
+
+function show(result){document.getElementById('results').innerHTML=resultsHTML(result);document.getElementById('sheet').innerHTML=detailedSection('bolt',result)}
+function restore(){restoreInputs(FIELDS);const s=(loadData().results||{}).bolt;if(s)show(s)}
 renderChrome('bolt');
-markRequiredFields(RULES);
-restore();
-document.querySelectorAll('input').forEach(el=>el.addEventListener('input',persistInputs));
+markRequiredFields(RULES);restore();
+document.querySelectorAll('input,select').forEach(el=>el.addEventListener('input',persistInputs));
 </script>
 </body>
 </html>

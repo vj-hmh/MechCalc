@@ -15,6 +15,7 @@
 <main>
 <div id="globalError" class="errorbox"></div>
 <div class="card"><h2>Membrane Stress</h2>
+<div id="formulaBox"></div>
 <div class="grid">
 <div class="field"><label>Method</label><select id="ms_method" onchange="toggleMembrane()"><option value="axial">Axial: F/A</option><option value="hoop">Thin cylinder hoop: PD/(2t)</option><option value="long">Thin cylinder longitudinal: PD/(4t)</option></select></div>
 <div class="field msAxial"><label>Axial force, F (kip)</label><input type="number" id="ms_force" step="any"></div>
@@ -25,53 +26,54 @@
 <div class="field"><label>Allowable membrane stress, Sallow (ksi)</label><input type="number" id="ms_allow" step="any"></div>
 <div class="field"><label>Method applicability / reference</label><input id="ms_reference"></div>
 </div>
-<div id="msFormula" class="formula">σ<sub>m</sub> = F ÷ A</div>
 <p><button class="calcbtn" onclick="calcMembrane()">Calculate Membrane Stress</button></p>
-<div id="ms_results" class="results"></div>
+<div id="results" class="results"></div>
+<div id="sheet"></div>
 <p class="jump"><a href="calculation-report.html"><button class="ghost">View in Calculation Report</button></a></p>
 </div>
 </main>
 <div class="footer">Prototype engineering aid. Results require independent engineering verification.</div>
 <script src="shared.js"></script>
 <script>
+const {v:V,q:Q,r:R,f:Fr,p:Pw,br:Br,o:Op,n:Nm,c:Ct,fn:Fn,tx:Tx}=M;const PI=M.pi;
+const val=id=>document.getElementById(id).value;
+const num=id=>Number(val(id));
+function restoreInputs(fields){const d=loadData(),inp=d.inputs||{};fields.forEach(id=>{if(inp[id]!==undefined)document.getElementById(id).value=inp[id]})}
+function persistInputs(){const d=loadData();d.inputs=d.inputs||{};FIELDS.forEach(id=>d.inputs[id]=val(id));saveData(d)}
+
 const FIELDS=['ms_method','ms_force','ms_area','ms_pressure','ms_dia','ms_thk','ms_allow','ms_reference'];
 const RULES_AXIAL=[{id:'ms_force',label:'Axial force',min:0},{id:'ms_area',label:'Effective area',exclusiveMin:0},{id:'ms_allow',label:'Allowable membrane stress',exclusiveMin:0,max:400}];
 const RULES_PRESSURE=[{id:'ms_pressure',label:'Pressure',min:0},{id:'ms_dia',label:'Diameter basis',exclusiveMin:0},{id:'ms_thk',label:'Effective thickness',exclusiveMin:0},{id:'ms_allow',label:'Allowable membrane stress',exclusiveMin:0,max:400}];
-const val=id=>document.getElementById(id).value;
-function toggleMembrane(){const m=val('ms_method'),pressure=m!=='axial';document.querySelectorAll('.msPressure').forEach(x=>x.style.display=pressure?'block':'none');document.querySelectorAll('.msAxial').forEach(x=>x.style.display=pressure?'none':'block');document.getElementById('msFormula').innerHTML=(m==='axial'?'σ<sub>m</sub> = F ÷ A':m==='hoop'?'σ<sub>h</sub> = P × D ÷ (2 × t)':'σ<sub>l</sub> = P × D ÷ (4 × t)')+'<br>Utilization Factor: UF = σ ÷ S<sub>allow</sub>'}
+const SYM={axial:V('σ','m'),hoop:V('σ','h'),long:V('σ','l')};
+const EQS={axial:Fr(V('F'),V('A')),hoop:Fr(R(V('P'),Op('·'),V('D')),R(Nm(2),Op('·'),V('t'))),long:Fr(R(V('P'),Op('·'),V('D')),R(Nm(4),Op('·'),V('t')))};
+function toggleMembrane(){const m=val('ms_method'),pr=m!=='axial';
+ document.querySelectorAll('.msPressure').forEach(x=>x.style.display=pr?'block':'none');document.querySelectorAll('.msAxial').forEach(x=>x.style.display=pr?'none':'block');
+ renderFormulaBox('formulaBox',[{lhs:SYM[m],eq:EQS[m],ref:m==='axial'?'Axial membrane stress':m==='hoop'?'Hoop membrane stress (thin cylinder)':'Longitudinal membrane stress (thin cylinder)'},{lhs:V('UF'),eq:Fr(SYM[m],V('S','allow')),ref:'Utilization factor'}])}
 function resultsHTML(r){return box('Membrane Stress',fmt(r.demand,4),'ksi')+box('Allowable (Sallow)',fmt(r.allowable),'ksi')+box('Utilization Factor (UF)',fmt(r.uf))+sbox(r.status)+ufGauge(r.uf)}
-function restore(){const d=loadData();const inputs=(d.inputs||{});FIELDS.forEach(id=>{if(inputs[id]!==undefined)document.getElementById(id).value=inputs[id]});toggleMembrane();const saved=(d.results||{}).membrane;if(saved)document.getElementById('ms_results').innerHTML=resultsHTML(saved)}
-function persistInputs(){const d=loadData();d.inputs=d.inputs||{};FIELDS.forEach(id=>d.inputs[id]=val(id));saveData(d)}
 function calcMembrane(){
- const method=val('ms_method'),allow=Number(val('ms_allow')),ref=val('ms_reference');
- let stress,sym,vars,steps;
- if(method==='axial'){
+ const m=val('ms_method'),S=num('ms_allow'),ref=val('ms_reference'),sym=SYM[m];let st,vars,steps;
+ if(m==='axial'){
   if(!validateForm(RULES_AXIAL).ok)return false;
-  const F=Number(val('ms_force')),A=Number(val('ms_area'));
-  stress=F/A;sym='σm';
-  vars=[variable('F','Axial Force',F,'kip','input'),variable('A','Effective Area',A,'in²','input'),variable('Sallow','Allowable Membrane Stress',allow,'ksi','input'),variable('Reference','Method Applicability / Reference',ref,'','input'),variable('σm','Axial Membrane Stress',stress,'ksi','calculated')];
-  steps=[step('Axial Membrane Stress','σm = F ÷ A',`σm = ${F} kip ÷ ${A} in²`,`σm = ${fmt(stress,4)} ksi`)];
+  const F=num('ms_force'),A=num('ms_area');st=F/A;
+  vars=[variable('F','Axial force',F,'kip','input',V('F')),variable('A','Effective area',A,'in²','input',V('A'))];
+  steps=[step('Axial membrane stress',sym,EQS.axial,Fr(Q(F,'kip'),Q(A,'in²')),Q(st,'ksi'))];
  }else{
   if(!validateForm(RULES_PRESSURE).ok)return false;
-  const P=Number(val('ms_pressure')),D=Number(val('ms_dia')),t=Number(val('ms_thk')),c=method==='hoop'?2:4;
-  stress=P*D/(c*t)/1000;sym=method==='hoop'?'σh':'σl';
-  const name=method==='hoop'?'Hoop Membrane Stress':'Longitudinal Membrane Stress';
-  vars=[variable('P','Internal Pressure',P,'psi','input'),variable('D','Diameter Basis',D,'in','input'),variable('t','Effective Thickness',t,'in','input'),variable('Sallow','Allowable Membrane Stress',allow,'ksi','input'),variable('Reference','Method Applicability / Reference',ref,'','input'),variable(sym,name,stress,'ksi','calculated')];
-  steps=[step(name,`${sym} = P × D ÷ (${c} × t) ÷ 1000`,`${sym} = ${P} psi × ${D} in ÷ (${c} × ${t} in) ÷ 1000`,`${sym} = ${fmt(stress,4)} ksi`,'Thin-wall cylinder')];
+  const P=num('ms_pressure'),D=num('ms_dia'),t=num('ms_thk'),c=m==='hoop'?2:4,psi=P*D/(c*t);st=psi/1000;
+  vars=[variable('P','Internal pressure',P,'psi','input',V('P')),variable('D','Diameter basis',D,'in','input',V('D')),variable('t','Effective thickness',t,'in','input',V('t'))];
+  steps=[step(m==='hoop'?'Hoop membrane stress (thin cylinder)':'Longitudinal membrane stress (thin cylinder)',sym,EQS[m],Fr(R(Q(P,'psi'),Op('·'),Q(D,'in')),R(Nm(c),Op('·'),Q(t,'in'))),R(Q(psi,'psi',1),Op('='),Q(st,'ksi')))];
  }
- const uf=stress/allow;
- vars.push(variable('UF','Utilization Factor',uf,'-','calculated'));
- steps.push(step('Utilization Factor',`UF = ${sym} ÷ Sallow`,`UF = ${fmt(stress,4)} ksi ÷ ${allow} ksi`,`UF = ${fmt(uf,3)} → ${status(uf)}`));
- const result={name:'Membrane stress',demand:stress,allowable:allow,uf,unit:'ksi',status:status(uf),vars,steps};
- document.getElementById('ms_results').innerHTML=resultsHTML(result);
- saveModuleResult('membrane',result);
- persistInputs();
- return true;
+ const uf=st/S;
+ vars.push(variable('Sallow','Allowable membrane stress',S,'ksi','input',V('S','allow')),variable('Ref','Method applicability / reference',ref,'','input',Tx('Reference')),variable('σ','Membrane stress',st,'ksi','calculated'),variable('UF','Utilization factor',uf,'-','calculated'));
+ steps.push(step('Utilization factor',V('UF'),Fr(sym,V('S','allow')),Fr(Q(st,'ksi'),Q(S,'ksi')),R(Nm(uf,3),Op('→'),Tx(status(uf)))));
+ const result={name:'Membrane stress',demand:st,allowable:S,uf,unit:'ksi',status:status(uf),vars,steps};
+ show(result);saveModuleResult('membrane',result);persistInputs();return true;
 }
+
+function show(result){document.getElementById('results').innerHTML=resultsHTML(result);document.getElementById('sheet').innerHTML=detailedSection('membrane',result)}
+function restore(){restoreInputs(FIELDS);const s=(loadData().results||{}).membrane;if(s)show(s)}
 renderChrome('membrane');
-markRequiredFields(RULES_PRESSURE);
-markRequiredFields(RULES_AXIAL);
-restore();
+markRequiredFields(RULES_PRESSURE);markRequiredFields(RULES_AXIAL);restoreInputs(FIELDS);toggleMembrane();restore();
 document.querySelectorAll('input,select').forEach(el=>el.addEventListener('input',persistInputs));
 </script>
 </body>

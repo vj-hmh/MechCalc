@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="shared.css">
-<style>.status.CALCULATED{background:var(--accent-soft);color:var(--accent-deep);border:1px solid var(--line)}@media print{.mc-sheet{border:none;padding:0;overflow:visible}.report-module{break-inside:auto}.mc-line{break-inside:avoid}}</style>
+<style>.status.CALCULATED{background:var(--accent-soft);color:var(--accent-deep);border:1px solid var(--line)}</style>
 </head>
 <body>
 <header class="app" id="appHeader"></header>
@@ -19,15 +19,12 @@
   <h3>Project data (JSON)</h3>
   <p class="small">Import a project JSON to refill every page before regenerating this report, or export the current data (including these results) to save alongside the report.</p>
   <div class="grid"><div class="field"><label>Import project JSON</label><input type="file" id="importJsonFile" accept="application/json,.json"></div></div>
-  <div class="report-actions">
-    <button onclick="doImportJson()">Import JSON</button>
-    <button class="ghost" onclick="exportProjectJson()">Export Current Data as JSON</button>
-  </div>
+  <div class="report-actions"><button onclick="doImportJson()">Import JSON</button><button class="ghost" onclick="exportProjectJson()">Export Current Data as JSON</button></div>
   <div id="jsonStatus" class="small"></div>
 </div>
 <div class="card">
 <h2>Calculation Report</h2>
-<p>Each calculation lists its input data first, followed by the governing equation, value substitution and result.</p>
+<p>Each calculation lists its input data first, followed by the governing equation, value substitution and result — laid out as Mathcad-style equations.</p>
 <div class="report-actions">
  <button onclick="doPreview()">Preview / Refresh Report</button>
  <button id="downloadBtn" class="ghost" onclick="doWord()" disabled>Generate Word Report</button>
@@ -39,24 +36,22 @@
 </main>
 <div class="footer">Prototype engineering aid. Results require independent engineering verification.</div>
 <script src="shared.js"></script>
+<!-- Word (.docx) export library: local copy first, CDN as backup -->
+<script src="docx.iife.js"></script>
+<script>if(!window.docx)document.write('<script src="https://unpkg.com/docx@9.6.1/dist/index.iife.js"><\/script>')</script>
 <script>
 let ready=false;
 function doPreview(){
- document.getElementById('preview').innerHTML=reportHtml();
- ready=true;
- document.getElementById('downloadBtn').disabled=false;
- document.getElementById('printBtn').disabled=false;
- document.getElementById('previewState').className='preview-state ready';
- document.getElementById('previewState').textContent='Preview is current. Review the report below, then download Word or print/save as PDF.';
+ document.getElementById('preview').innerHTML=reportHtml();ready=true;
+ document.getElementById('downloadBtn').disabled=false;document.getElementById('printBtn').disabled=false;
+ const s=document.getElementById('previewState');s.className='preview-state ready';s.textContent='Preview is current. Review the report below, then download Word or print/save as PDF.';
 }
-function doWord(){if(!ready){showError('Preview the report before generating the Word report.');return}try{generateWord()}catch(e){console.error(e);showError('Word report could not be generated: '+e.message)}}
+async function doWord(){if(!ready){showError('Preview the report before generating the Word report.');return}try{await generateWord()}catch(e){console.error(e);showError('Word report could not be generated: '+e.message)}}
 function doPrint(){if(!ready){showError('Preview the report before printing or saving as PDF.');return}window.print()}
 async function doImportJson(){
- const input=document.getElementById('importJsonFile');const file=input.files[0];
- const statusEl=document.getElementById('jsonStatus');
- if(!file){statusEl.textContent='Choose a JSON file first.';return}
- const ok=await importProjectJsonFile(file,'jsonStatus');
- if(ok){input.value='';doPreview();}
+ const input=document.getElementById('importJsonFile'),file=input.files[0],st=document.getElementById('jsonStatus');
+ if(!file){st.textContent='Choose a JSON file first.';return}
+ if(await importProjectJsonFile(file,'jsonStatus')){input.value='';doPreview()}
 }
 renderChrome('report');
 doPreview();
