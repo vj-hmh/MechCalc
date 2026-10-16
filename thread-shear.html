@@ -17,18 +17,15 @@
 <div class="card"><h2>Thread Shear Stress — Machinery's Handbook, 27th Ed.</h2>
 <div id="formulaBox"></div>
 <div class="grid">
-<div class="field"><label>Thread designation</label><input id="th_designation"></div>
-<div class="field"><label>Applied axial load, F (kip)</label><input type="number" id="th_load" step="any"></div>
+<div class="field"><label>Thread major diameter, D (in)</label><input type="number" id="th_dia" step="any"></div>
 <div class="field"><label>Threads per inch, n (TPI)</label><input type="number" id="th_tpi" step="any"></div>
-<div class="field"><label>Tensile stress area of external thread, At (in²)</label><input type="number" id="th_at" step="any"></div>
-<div class="field"><label>Maximum minor diameter of internal thread, Kn max (in)</label><input type="number" id="th_knmax" step="any"></div>
-<div class="field"><label>Maximum pitch diameter of internal thread, En max (in)</label><input type="number" id="th_enmax" step="any"></div>
-<div class="field"><label>Minimum pitch diameter of external thread, Es min (in)</label><input type="number" id="th_esmin" step="any"></div>
-<div class="field"><label>Minimum major diameter of external thread, Ds min (in)</label><input type="number" id="th_dsmin" step="any"></div>
+<div class="field"><label>Thread class (ASME B1.1)</label><select id="th_class"><option value="2">2A / 2B</option><option value="3">3A / 3B</option></select></div>
+<div class="field"><label>Applied axial load, F (kip)</label><input type="number" id="th_load" step="any"></div>
 <div class="field"><label>Actual length of engagement, Lm (in)</label><input type="number" id="th_lm" step="any"></div>
 <div class="field"><label>External thread shear allowable, Sallow,s (ksi)</label><input type="number" id="th_extallow" step="any"></div>
 <div class="field"><label>Internal thread shear allowable, Sallow,n (ksi)</label><input type="number" id="th_intallow" step="any"></div>
 </div>
+<p class="small">Tensile stress area and the limiting thread diameters (Es min, Ds min, En max, Kn max) are calculated from D, n and thread class using the ASME B1.1 basic-dimension and tolerance formulas. They are listed in the calculation sheet for checking against the ASME B1.1 tables.</p>
 <p><button class="calcbtn" onclick="calcThread()">Calculate Thread Shear</button></p>
 <div id="results" class="results"></div>
 <div id="sheet"></div>
@@ -41,26 +38,34 @@
 const {v:V,q:Q,r:R,f:Fr,p:Pw,br:Br,o:Op,n:Nm,c:Ct,fn:Fn,tx:Tx}=M;const PI=M.pi;
 const val=id=>document.getElementById(id).value;
 const num=id=>Number(val(id));
-function restoreInputs(fields){const d=loadData(),inp=d.inputs||{};fields.forEach(id=>{if(inp[id]!==undefined)document.getElementById(id).value=inp[id]})}
+function restoreInputs(fields){const d=loadData(),inp=d.inputs||{};fields.forEach(id=>{const el=document.getElementById(id);if(el&&inp[id]!==undefined)el.value=inp[id]})}
 function persistInputs(){const d=loadData();d.inputs=d.inputs||{};FIELDS.forEach(id=>d.inputs[id]=val(id));saveData(d)}
 
-const FIELDS=['th_designation','th_load','th_tpi','th_at','th_knmax','th_enmax','th_esmin','th_dsmin','th_lm','th_extallow','th_intallow'];
+const FIELDS=['th_dia','th_tpi','th_class','th_load','th_lm','th_extallow','th_intallow'];
 const RULES=[
- {id:'th_load',label:'Applied axial load (F)',min:0},
+ {id:'th_dia',label:'Thread major diameter (D)',exclusiveMin:0,max:24},
  {id:'th_tpi',label:'Threads per inch (n)',exclusiveMin:0,max:80},
- {id:'th_at',label:'Tensile stress area (At)',exclusiveMin:0},
- {id:'th_knmax',label:'Kn max',exclusiveMin:0,max:60},
- {id:'th_enmax',label:'En max',exclusiveMin:0,max:60},
- {id:'th_esmin',label:'Es min',exclusiveMin:0,max:60},
- {id:'th_dsmin',label:'Ds min',exclusiveMin:0,max:60},
+ {id:'th_load',label:'Applied axial load (F)',min:0},
  {id:'th_lm',label:'Actual length of engagement (Lm)',required:false,min:0},
  {id:'th_extallow',label:'External thread shear allowable',exclusiveMin:0,max:400},
  {id:'th_intallow',label:'Internal thread shear allowable',exclusiveMin:0,max:400}];
 const MHB="Machinery's Handbook 27th Ed.";
-const Kn=V('K','n,max'),En=V('E','n,max'),Es=V('E','s,min'),Ds=V('D','s,min'),Le=V('L','e'),As=V('A','s'),An=V('A','n');
+const ASME='ASME B1.1';
+
+/* symbols */
+const Kn=V('K','n,max'),En=V('E','n,max'),Es=V('E','s,min'),Ds=V('D','s,min'),Le=V('L','e'),As=V('A','s'),An=V('A','n'),At=V('A','t');
+const P23=Pw(V('P'),Fr(Nm(2),Nm(3)));
 const half2n=Fr(Nm(1),R(Nm(2),Op('·'),V('n')));
+
+/* symbolic equations */
 const EQ={
- Le:Fr(R(Nm(2),Op('·'),V('A','t')),R(PI,Op('·'),Kn,Op('·'),Br(R(Fr(Nm(1),Nm(2)),Op('+'),Nm('0.57735'),Op('·'),V('n'),Op('·'),Br(R(Es,Op('−'),Kn))),'['))),
+ P:Fr(Nm(1),V('n')),
+ At:R(Nm('0.7854'),Op('·'),Pw(Br(R(V('D'),Op('−'),Fr(Nm('0.9743'),V('n')))),Nm(2))),
+ Eb:R(V('D'),Op('−'),Nm('0.649519'),Op('·'),V('P')),
+ D1:R(V('D'),Op('−'),Nm('1.082532'),Op('·'),V('P')),
+ LE:R(Nm(9),Op('·'),V('P')),
+ T2:R(Nm('0.0015'),Op('·'),Pw(V('D'),Fr(Nm(1),Nm(3))),Op('+'),Nm('0.0015'),Op('·'),M.sqrt(V('L','E')),Op('+'),Nm('0.015'),Op('·'),P23),
+ Le:Fr(R(Nm(2),Op('·'),At),R(PI,Op('·'),Kn,Op('·'),Br(R(Fr(Nm(1),Nm(2)),Op('+'),Nm('0.57735'),Op('·'),V('n'),Op('·'),Br(R(Es,Op('−'),Kn))),'['))),
  As:R(PI,Op('·'),V('n'),Op('·'),Le,Op('·'),Kn,Op('·'),Br(R(half2n,Op('+'),Nm('0.57735'),Op('·'),Br(R(Es,Op('−'),Kn))),'[')),
  An:R(PI,Op('·'),V('n'),Op('·'),Le,Op('·'),Ds,Op('·'),Br(R(half2n,Op('+'),Nm('0.57735'),Op('·'),Br(R(Ds,Op('−'),En))),'[')),
  ts:Fr(V('F'),As),tn:Fr(V('F'),An),
@@ -68,70 +73,148 @@ const EQ={
  uf:Fn('max',R(V('UF','s'),Op(','),V('UF','n')))
 };
 renderFormulaBox('formulaBox',[
+ {lhs:At,eq:EQ.At,ref:ASME+' — tensile stress area'},
  {lhs:Le,eq:EQ.Le,ref:MHB+', Formula (1)'},
  {lhs:As,eq:EQ.As,ref:MHB+', Formula (5)'},
  {lhs:An,eq:EQ.An,ref:MHB+', Formula (6)'},
  {lhs:V('τ','s'),eq:EQ.ts,ref:'External thread shear stress'},
  {lhs:V('τ','n'),eq:EQ.tn,ref:'Internal thread shear stress'}]);
+
 function resultsHTML(r){
- const g=s=>r.vars.find(v=>v.symbol===s).value;const lm=g('Lm');
+ const g=s=>{const v=(r.vars||[]).find(x=>x.symbol===s);return v?v.value:''};
+ const lm=g('Lm');
  return box('Required Length of Engagement (Lₑ)',fmt(g('Le'),4),'in')
  +(lm!==''?box('Engagement Check (Lm ≥ Lₑ)',Number(lm)>=g('Le')?'ADEQUATE':'INSUFFICIENT'):'')
+ +box('Tensile Stress Area (Aₜ)',fmt(g('At'),4),'in²')
  +box('External Thread Shear Area (Aₛ)',fmt(g('As'),4),'in²')+box('Internal Thread Shear Area (Aₙ)',fmt(g('An'),4),'in²')
  +box('External Thread Shear Stress (τₛ)',fmt(g('τs'),4),'ksi')+box('Internal Thread Shear Stress (τₙ)',fmt(g('τn'),4),'ksi')
  +box('Governing UF',fmt(r.uf))+sbox(r.status)+ufGauge(r.uf);
 }
-function calcThread(){
- if(!validateForm(RULES).ok)return false;
- const F=num('th_load'),n=num('th_tpi'),At=num('th_at'),kn=num('th_knmax'),en=num('th_enmax'),es=num('th_esmin'),ds=num('th_dsmin'),Se=num('th_extallow'),Si=num('th_intallow');
- const hasLm=val('th_lm')!=='',Lm=num('th_lm');
- if(!(kn<es)){showError('Es min must be greater than Kn max.');return false}
- if(!(en<ds)){showError('Ds min must be greater than En max.');return false}
- const le=2*At/(Math.PI*kn*(0.5+0.57735*n*(es-kn)));
- const as=Math.PI*n*le*kn*(1/(2*n)+0.57735*(es-kn)), an=Math.PI*n*le*ds*(1/(2*n)+0.57735*(ds-en));
- const ts=F/as,tn=F/an,us=ts/Se,un=tn/Si,uf=Math.max(us,un);
- const vars=[
-  variable('Thread','Thread designation',val('th_designation'),'','input',Tx('Thread')),
-  variable('F','Applied axial load',F,'kip','input',V('F')),
-  variable('n','Threads per inch',n,'in⁻¹','input',V('n')),
-  variable('At','Tensile stress area of external thread',At,'in²','input',V('A','t')),
-  variable('Kn','Maximum minor diameter of internal thread',kn,'in','input',Kn),
-  variable('En','Maximum pitch diameter of internal thread',en,'in','input',En),
-  variable('Es','Minimum pitch diameter of external thread',es,'in','input',Es),
-  variable('Ds','Minimum major diameter of external thread',ds,'in','input',Ds),
-  variable('Lm','Actual length of engagement',hasLm?Lm:'','in','input',V('L','m')),
-  variable('Ss','External thread shear allowable',Se,'ksi','input',V('S','allow,s')),
-  variable('Sn','Internal thread shear allowable',Si,'ksi','input',V('S','allow,n')),
-  variable('Le','Required length of engagement',le,'in','calculated'),variable('As','External thread shear area',as,'in²','calculated'),
-  variable('An','Internal thread shear area',an,'in²','calculated'),variable('τs','External thread shear stress',ts,'ksi','calculated'),
-  variable('τn','Internal thread shear stress',tn,'ksi','calculated'),variable('UF','Governing utilization factor',uf,'-','calculated')];
- const h2n=Fr(Nm(1),R(Nm(2),Op('·'),Q(n,'in⁻¹')));
- const steps=[
-  step('Required length of engagement',Le,EQ.Le,
-   Fr(R(Nm(2),Op('·'),Q(At,'in²')),R(PI,Op('·'),Q(kn,'in'),Op('·'),Br(R(Fr(Nm(1),Nm(2)),Op('+'),Nm('0.57735'),Op('·'),Q(n,'in⁻¹'),Op('·'),Br(R(Q(es,'in'),Op('−'),Q(kn,'in')))),'['))),
-   Q(le,'in'),MHB+', Formula (1)'),
-  step('Shear area of external threads',As,EQ.As,
-   R(PI,Op('·'),Q(n,'in⁻¹'),Op('·'),Q(le,'in'),Op('·'),Q(kn,'in'),Op('·'),Br(R(h2n,Op('+'),Nm('0.57735'),Op('·'),Br(R(Q(es,'in'),Op('−'),Q(kn,'in')))),'[')),
-   Q(as,'in²'),MHB+', Formula (5)'),
-  step('Shear area of internal threads',An,EQ.An,
-   R(PI,Op('·'),Q(n,'in⁻¹'),Op('·'),Q(le,'in'),Op('·'),Q(ds,'in'),Op('·'),Br(R(h2n,Op('+'),Nm('0.57735'),Op('·'),Br(R(Q(ds,'in'),Op('−'),Q(en,'in')))),'[')),
-   Q(an,'in²'),MHB+', Formula (6)')];
- if(hasLm)steps.push(step('Length of engagement check',null,R(V('L','m'),Op('≥'),Le),R(Q(Lm,'in'),Op(Lm>=le?'≥':'<'),Q(le,'in')),Tx(Lm>=le?'ADEQUATE':'INSUFFICIENT — increase engagement length')));
- steps.push(
-  step('External thread shear stress',V('τ','s'),EQ.ts,Fr(Q(F,'kip'),Q(as,'in²')),Q(ts,'ksi')),
-  step('Internal thread shear stress',V('τ','n'),EQ.tn,Fr(Q(F,'kip'),Q(an,'in²')),Q(tn,'ksi')),
-  step('External thread utilization',V('UF','s'),EQ.us,Fr(Q(ts,'ksi'),Q(Se,'ksi')),Nm(us,3)),
-  step('Internal thread utilization',V('UF','n'),EQ.un,Fr(Q(tn,'ksi'),Q(Si,'ksi')),Nm(un,3)),
-  step('Governing utilization',V('UF'),EQ.uf,Fn('max',R(Nm(us,3),Op(','),Nm(un,3))),R(Nm(uf,3),Op('→'),Tx(status(uf)))));
- const result={name:"Thread shear stress (Machinery's Handbook)",demand:Math.max(ts,tn),allowable:us>=un?Se:Si,uf,unit:'ksi',status:status(uf),vars,steps};
- show(result);saveModuleResult('thread',result);persistInputs();return true;
-}
 
+function calcThread(){
+ try{
+  if(!validateForm(RULES).ok)return false;
+  const D=num('th_dia'),n=num('th_tpi'),cls=val('th_class')==='3'?3:2;
+  const F=num('th_load'),Se=num('th_extallow'),Si=num('th_intallow');
+  const hasLm=val('th_lm')!=='',Lm=num('th_lm');
+  const extC=cls+'A',intC=cls+'B',desig=`${fmt(D,4)}-${fmt(n,2)} UN-${extC}/${intC}`;
+
+  /* ---- ASME B1.1 basic dimensions and tolerances ---- */
+  const P=1/n, p23=Math.pow(P,2/3);
+  const At_=0.7854*Math.pow(D-0.9743/n,2);
+  const Eb=D-0.649519*P;                 /* basic pitch diameter            */
+  const D1=D-1.082532*P;                 /* basic minor diameter (internal) */
+  const LE=9*P;                          /* standard length of engagement   */
+  const T2=0.0015*Math.cbrt(D)+0.0015*Math.sqrt(LE)+0.015*p23;  /* class 2A PD tolerance */
+  const es=cls===2?0.3*T2:0;             /* allowance (3A = none)           */
+  const TdExt=cls===2?T2:0.75*T2;        /* external PD tolerance           */
+  const TdInt=cls===2?1.3*T2:0.975*T2;   /* internal PD tolerance           */
+  const TdMaj=0.060*p23;                 /* external major dia tolerance    */
+  /* internal minor diameter tolerance */
+  const smallF=0.05*p23+0.03*P/D-0.002;
+  let TD1_2B,TD1rule;
+  if(D<0.25){TD1_2B=smallF;TD1rule='small';}
+  else if(n>=4){TD1_2B=0.25*P-0.4*P*P;TD1rule='std';}
+  else{TD1_2B=0.15*P;TD1rule='coarse';}
+  const TD1=cls===2?TD1_2B:Math.min(Math.max(smallF,0.120*P),TD1_2B);
+
+  const esMax=Eb-es, esmin=esMax-TdExt;       /* Es max / Es min */
+  const dsMax=D-es,  dsmin=dsMax-TdMaj;       /* Ds max / Ds min */
+  const enmax=Eb+TdInt;                       /* En max          */
+  const knmax=D1+TD1;                         /* Kn max          */
+  if(!(knmax<esmin)){showError('Calculated Kn max is not less than Es min. Check D and TPI.');return false}
+  if(!(enmax<dsmin)){showError('Calculated En max is not less than Ds min. Check D and TPI.');return false}
+
+  /* ---- Machinery's Handbook thread shear ---- */
+  const le=2*At_/(Math.PI*knmax*(0.5+0.57735*n*(esmin-knmax)));
+  const as=Math.PI*n*le*knmax*(1/(2*n)+0.57735*(esmin-knmax));
+  const an=Math.PI*n*le*dsmin*(1/(2*n)+0.57735*(dsmin-enmax));
+  const ts=F/as,tn=F/an,us=ts/Se,un=tn/Si,uf=Math.max(us,un);
+
+  const vars=[
+   variable('Thread','Thread designation',desig,'','input',Tx('Thread')),
+   variable('D','Thread major diameter',D,'in','input',V('D')),
+   variable('n','Threads per inch',n,'in⁻¹','input',V('n')),
+   variable('F','Applied axial load',F,'kip','input',V('F')),
+   variable('Lm','Actual length of engagement',hasLm?Lm:'','in','input',V('L','m')),
+   variable('Ss','External thread shear allowable',Se,'ksi','input',V('S','allow,s')),
+   variable('Sn','Internal thread shear allowable',Si,'ksi','input',V('S','allow,n')),
+   variable('P','Thread pitch',P,'in','calculated',V('P')),
+   variable('At','Tensile stress area of external thread',At_,'in²','calculated',At),
+   variable('Es','Minimum pitch diameter of external thread',esmin,'in','calculated',Es),
+   variable('Ds','Minimum major diameter of external thread',dsmin,'in','calculated',Ds),
+   variable('En','Maximum pitch diameter of internal thread',enmax,'in','calculated',En),
+   variable('Kn','Maximum minor diameter of internal thread',knmax,'in','calculated',Kn),
+   variable('Le','Required length of engagement',le,'in','calculated',Le),
+   variable('As','External thread shear area',as,'in²','calculated',As),
+   variable('An','Internal thread shear area',an,'in²','calculated',An),
+   variable('τs','External thread shear stress',ts,'ksi','calculated',V('τ','s')),
+   variable('τn','Internal thread shear stress',tn,'ksi','calculated',V('τ','n')),
+   variable('UF','Governing utilization factor',uf,'-','calculated',V('UF'))];
+
+  const qP=Q(P,'in',5);
+  /* internal minor diameter tolerance step (formula depends on size / pitch / class) */
+  const smallEq=R(Nm('0.05'),Op('·'),P23,Op('+'),Fr(R(Nm('0.03'),Op('·'),V('P')),V('D')),Op('−'),Nm('0.002'));
+  const smallSub=R(Nm('0.05'),Op('·'),Pw(Br(qP),Fr(Nm(2),Nm(3))),Op('+'),Fr(R(Nm('0.03'),Op('·'),qP),Q(D,'in')),Op('−'),Nm('0.002'));
+  let tdEq,tdSub,tdRef;
+  if(cls===3){
+   tdEq=Fn('max',R(smallEq,Op(','),Nm('0.120'),Op('·'),V('P')));
+   tdSub=Fn('max',R(smallSub,Op(','),Nm('0.120'),Op('·'),qP));
+   tdRef=ASME+' — class 3B (not greater than class 2B value)';
+  }else if(TD1rule==='small'){tdEq=smallEq;tdSub=smallSub;tdRef=ASME+' — class 2B, D < 0.25 in';}
+  else if(TD1rule==='std'){
+   tdEq=R(Nm('0.25'),Op('·'),V('P'),Op('−'),Nm('0.4'),Op('·'),Pw(V('P'),Nm(2)));
+   tdSub=R(Nm('0.25'),Op('·'),qP,Op('−'),Nm('0.4'),Op('·'),Pw(Br(qP),Nm(2)));
+   tdRef=ASME+' — class 2B, n ≥ 4';
+  }else{tdEq=R(Nm('0.15'),Op('·'),V('P'));tdSub=R(Nm('0.15'),Op('·'),qP);tdRef=ASME+' — class 2B, n < 4';}
+
+  const kT=cls===2?'1.3':'0.975', kE=cls===2?'1.0':'0.75';
+  const steps=[
+   step('Thread pitch',V('P'),EQ.P,Fr(Nm(1),Q(n,'in⁻¹')),qP),
+   step('Tensile stress area',At,EQ.At,R(Nm('0.7854'),Op('·'),Pw(Br(R(Q(D,'in'),Op('−'),Fr(Nm('0.9743'),Q(n,'in⁻¹')))),Nm(2))),Q(At_,'in²'),ASME),
+   step('Basic pitch diameter',V('E','bsc'),EQ.Eb,R(Q(D,'in'),Op('−'),Nm('0.649519'),Op('·'),qP),Q(Eb,'in',5),ASME),
+   step('Basic minor diameter of internal thread',V('D','1,bsc'),EQ.D1,R(Q(D,'in'),Op('−'),Nm('1.082532'),Op('·'),qP),Q(D1,'in',5),ASME),
+   step('Standard length of engagement',V('L','E'),EQ.LE,R(Nm(9),Op('·'),qP),Q(LE,'in',5),ASME),
+   step('Class 2A pitch diameter tolerance',V('T','2A'),EQ.T2,
+    R(Nm('0.0015'),Op('·'),Pw(Br(Q(D,'in')),Fr(Nm(1),Nm(3))),Op('+'),Nm('0.0015'),Op('·'),M.sqrt(Q(LE,'in',5)),Op('+'),Nm('0.015'),Op('·'),Pw(Br(qP),Fr(Nm(2),Nm(3)))),
+    Q(T2,'in',5),ASME),
+   step('Allowance (external thread)',V('es'),cls===2?R(Nm('0.3'),Op('·'),V('T','2A')):Nm(0),cls===2?R(Nm('0.3'),Op('·'),Q(T2,'in',5)):Nm(0),Q(es,'in',5),ASME+(cls===2?' — class 2A':' — class 3A (no allowance)')),
+   step('Minimum pitch diameter of external thread',Es,R(V('E','bsc'),Op('−'),V('es'),Op('−'),Nm(kE),Op('·'),V('T','2A')),
+    R(Q(Eb,'in',5),Op('−'),Q(es,'in',5),Op('−'),Nm(kE),Op('·'),Q(T2,'in',5)),Q(esmin,'in',5),ASME+' — class '+extC),
+   step('Minimum major diameter of external thread',Ds,R(V('D'),Op('−'),V('es'),Op('−'),Nm('0.060'),Op('·'),P23),
+    R(Q(D,'in'),Op('−'),Q(es,'in',5),Op('−'),Nm('0.060'),Op('·'),Pw(Br(qP),Fr(Nm(2),Nm(3)))),Q(dsmin,'in',5),ASME+' — class '+extC),
+   step('Maximum pitch diameter of internal thread',En,R(V('E','bsc'),Op('+'),Nm(kT),Op('·'),V('T','2A')),
+    R(Q(Eb,'in',5),Op('+'),Nm(kT),Op('·'),Q(T2,'in',5)),Q(enmax,'in',5),ASME+' — class '+intC),
+   step('Minor diameter tolerance of internal thread',V('T','D1'),tdEq,tdSub,Q(TD1,'in',5),tdRef),
+   step('Maximum minor diameter of internal thread',Kn,R(V('D','1,bsc'),Op('+'),V('T','D1')),R(Q(D1,'in',5),Op('+'),Q(TD1,'in',5)),Q(knmax,'in',5),ASME+' — class '+intC),
+   step('Required length of engagement',Le,EQ.Le,
+    Fr(R(Nm(2),Op('·'),Q(At_,'in²')),R(PI,Op('·'),Q(knmax,'in',5),Op('·'),Br(R(Fr(Nm(1),Nm(2)),Op('+'),Nm('0.57735'),Op('·'),Q(n,'in⁻¹'),Op('·'),Br(R(Q(esmin,'in',5),Op('−'),Q(knmax,'in',5)))),'['))),
+    Q(le,'in'),MHB+', Formula (1)'),
+   step('Shear area of external threads',As,EQ.As,
+    R(PI,Op('·'),Q(n,'in⁻¹'),Op('·'),Q(le,'in'),Op('·'),Q(knmax,'in',5),Op('·'),Br(R(Fr(Nm(1),R(Nm(2),Op('·'),Q(n,'in⁻¹'))),Op('+'),Nm('0.57735'),Op('·'),Br(R(Q(esmin,'in',5),Op('−'),Q(knmax,'in',5)))),'[')),
+    Q(as,'in²'),MHB+', Formula (5)'),
+   step('Shear area of internal threads',An,EQ.An,
+    R(PI,Op('·'),Q(n,'in⁻¹'),Op('·'),Q(le,'in'),Op('·'),Q(dsmin,'in',5),Op('·'),Br(R(Fr(Nm(1),R(Nm(2),Op('·'),Q(n,'in⁻¹'))),Op('+'),Nm('0.57735'),Op('·'),Br(R(Q(dsmin,'in',5),Op('−'),Q(enmax,'in',5)))),'[')),
+    Q(an,'in²'),MHB+', Formula (6)')];
+  if(hasLm)steps.push(step('Length of engagement check',null,R(V('L','m'),Op('≥'),Le),R(Q(Lm,'in'),Op(Lm>=le?'≥':'<'),Q(le,'in')),Tx(Lm>=le?'ADEQUATE':'INSUFFICIENT — increase engagement length')));
+  steps.push(
+   step('External thread shear stress',V('τ','s'),EQ.ts,Fr(Q(F,'kip'),Q(as,'in²')),Q(ts,'ksi')),
+   step('Internal thread shear stress',V('τ','n'),EQ.tn,Fr(Q(F,'kip'),Q(an,'in²')),Q(tn,'ksi')),
+   step('External thread utilization',V('UF','s'),EQ.us,Fr(Q(ts,'ksi'),Q(Se,'ksi')),Nm(us,3)),
+   step('Internal thread utilization',V('UF','n'),EQ.un,Fr(Q(tn,'ksi'),Q(Si,'ksi')),Nm(un,3)),
+   step('Governing utilization',V('UF'),EQ.uf,Fn('max',R(Nm(us,3),Op(','),Nm(un,3))),R(Nm(uf,3),Op('→'),Tx(status(uf)))));
+
+  const result={name:"Thread shear stress (Machinery's Handbook)",demand:Math.max(ts,tn),allowable:us>=un?Se:Si,uf,unit:'ksi',status:status(uf),vars,steps};
+  show(result);saveModuleResult('thread',result);persistInputs();clearError();return true;
+ }catch(e){
+  console.error(e);showError('Calculation error: '+e.message);return false;
+ }
+}
 function show(result){document.getElementById('results').innerHTML=resultsHTML(result);document.getElementById('sheet').innerHTML=detailedSection('thread',result)}
-function restore(){restoreInputs(FIELDS);const s=(loadData().results||{}).thread;if(s)show(s)}
+function restore(){restoreInputs(FIELDS);const s=(loadData().results||{}).thread;if(s){try{show(s)}catch(e){console.warn('Saved thread result could not be displayed; recalculate.',e)}}}
 renderChrome('thread');
 markRequiredFields(RULES);restore();
-document.querySelectorAll('input,select').forEach(el=>el.addEventListener('input',persistInputs));
+document.querySelectorAll('input,select').forEach(el=>{el.addEventListener('input',persistInputs);el.addEventListener('change',persistInputs)});
 </script>
 </body>
 </html>
