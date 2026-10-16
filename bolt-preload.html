@@ -48,10 +48,12 @@ const RULES=[
 const API='API 6A Annex H';
 const ASME='ASME B1.1';
 const COS=Fn('cos',Fr(PI,Nm(6)));
+const COS30=Fn('cos',R(Nm(30),Ct('°')));   /* cos(30°) shown with a degree symbol */
+
 /* symbolic equations (shared by the formula box and the report) */
 const EQ={
  P:Fr(Nm(1),V('n')),
- E:R(V('D','nom'),Op('−'),Nm(2),Op('·'),Br(R(Fr(Nm(3),Nm(8)),Op('·'),COS,Op('·'),Fr(Nm(1),V('n','t'))),'[')),
+ E:R(V('D'),Op('−'),Nm(2),Op('·'),Br(R(Fr(Nm(3),Nm(8)),Op('·'),COS30,Op('·'),Fr(Nm(1),V('n'))),'[')),
  H:R(Nm(1.5),Op('·'),V('D'),Op('+'),Nm(0.125),M.u('in')),
  As:R(Fr(Nm(1),Nm(4)),Op('·'),PI,Op('·'),Pw(Br(R(V('D'),Op('−'),Br(R(Nm(0.9743),Op('·'),V('P')))),'['),Nm(2))),
  sig:R(V('k'),Op('·'),V('S','y')),
@@ -62,62 +64,89 @@ const EQ={
  tauft:Fr(V('τ'),Nm(12))
 };
 renderFormulaBox('formulaBox',[
- {lhs:V('E'),eq:EQ.E,ref:ASME+' — basic pitch diameter from nominal diameter and TPI'},
+ {lhs:V('P'),eq:EQ.P,ref:'Thread pitch'},
+ {lhs:V('E'),eq:EQ.E,ref:ASME+' — basic pitch diameter'},
  {lhs:V('A','s'),eq:EQ.As,ref:API+', Eq. (H.1)'},
  {lhs:V('F'),eq:EQ.F,ref:API+', Eq. (H.2)'},
  {lhs:V('τ'),eq:EQ.tau,ref:API+', Eq. (H.3)'},
- {lhs:V('P'),eq:EQ.P,ref:'Thread pitch'},
  {lhs:V('H'),eq:EQ.H,ref:'Hex size (nut); K = 0.125 in nut internal chamfer'}]);
+
 function resultsHTML(r){
- const g=s=>r.vars.find(v=>v.symbol===s).value;
+ /* safe lookup: older saved results without a variable no longer break the page */
+ const g=s=>{const v=(r.vars||[]).find(x=>x.symbol===s);return v?v.value:''};
  return `<div style="grid-column:1/-1;border:2px solid #0b5cad;background:#eaf3fc;border-radius:10px;padding:16px 20px;margin-bottom:8px">
 <div style="font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#0b5cad">Make-up Torque (τ) — API 6A Eq. H.3</div>
 <div style="font-family:'IBM Plex Mono',monospace;font-size:32px;font-weight:600;color:#0a2540;margin-top:4px">${fmt(g('τft'),1)} <span style="font-size:18px;font-weight:500">ft·lbf</span></div></div>`
- +box('Thread Pitch (P)',fmt(g('P'),5),'in')+box('Pitch Diameter (E)',fmt(g('E'),5),'in')+box('Tensile Stress Area (Aₛ)',fmt(g('As'),4),'in²')+box('Bolt Stress (σ)',fmt(g('σ'),3),'ksi')+box('Bolt Load (F)',fmt(g('F'),0),'lbf');
+ +box('Thread Pitch (P)',fmt(g('P'),5),'in')
+ +box('Pitch Diameter (E)',fmt(g('E'),5),'in')
+ +box('Tensile Stress Area (Aₛ)',fmt(g('As'),4),'in²')
+ +box('Bolt Stress (σ)',fmt(g('σ'),3),'ksi')
+ +box('Bolt Load (F)',fmt(g('F'),0),'lbf');
 }
+
 function calcBolt(){
- if(!validateForm(RULES).ok)return false;
- const D=num('bp_dia'),n=num('bp_tpi'),f=num('bp_f'),Sy=num('bp_yield'),k=num('bp_pct')/100,K=0.125;
- const P=1/n;
- const E=D-2*((3/8)*Math.cos(Math.PI/6)*(1/n));
- const H=1.5*D+K;
- if(E<=0||E>=D){showError('Calculated pitch diameter E must be greater than 0 and less than D. Check the nominal diameter and TPI inputs.');return false}
- const c=Math.cos(Math.PI/6);
- const As=0.25*Math.PI*(D-0.9743*P)**2, sig=k*Sy, F=sig*1000*As;
- const t1=F*E*(P+Math.PI*f*E/c)/(2*(Math.PI*E-P*f/c)), t2=F*f*((H+D+K)/4), tau=t1+t2, tauft=tau/12;
- const vars=[
-  variable('D','Thread major diameter',D,'in','input',V('D')),
-  variable('n','Threads per inch',n,'in⁻¹','input',V('n')),
-  variable('f','Friction coefficient',f,'-','input',V('f')),
-  variable('Sy','Yield strength',Sy,'ksi','input',V('S','y')),
-  variable('k','Target bolt stress, fraction of Sᵧ',k,'-','input',V('k')),
-  variable('K','Nut internal chamfer',K,'in','input',V('K')),
-  variable('P','Thread pitch',P,'in','calculated'),
-  variable('E','Pitch diameter of thread',E,'in','calculated'),
-  variable('H','Hex size',H,'in','calculated'),variable('As','Tensile stress area',As,'in²','calculated'),
-  variable('σ','Bolt stress',sig,'ksi','calculated'),variable('F','Bolt load',F,'lbf','calculated'),
-  variable('τ','Make-up torque',tau,'lbf·in','calculated'),variable('τft','Make-up torque',tauft,'ft·lbf','calculated')];
- const steps=[
-  step('Thread pitch',V('P'),EQ.P,Fr(Nm(1),Q(n,'in⁻¹')),Q(P,'in',5),'Thread pitch'),
-  step('Pitch diameter of thread',V('E'),EQ.E,
-   R(Q(D,'in'),Op('−'),Nm(2),Op('·'),Br(R(Fr(Nm(3),Nm(8)),Op('·'),Fn('cos',Nm(30,M.u('deg'))),Op('·'),Fr(Nm(1),Q(n,'in⁻¹'))),'[')),
-   Q(E,'in',5),ASME),
-  step('Hex size (nut)',V('H'),EQ.H,R(Nm(1.5),Op('·'),Q(D,'in'),Op('+'),Q(0.125,'in')),Q(H,'in'),API),
-  step('Tensile stress area',V('A','s'),EQ.As,R(Fr(Nm(1),Nm(4)),Op('·'),PI,Op('·'),Pw(Br(R(Q(D,'in'),Op('−'),Br(R(Nm(0.9743),Op('·'),Q(P,'in',5)))),'['),Nm(2))),Q(As,'in²'),API+', Eq. (H.1)'),
-  step('Bolt stress',V('σ'),EQ.sig,R(Nm(k),Op('·'),Q(Sy,'ksi')),Q(sig,'ksi',3)),
-  step('Bolt load',V('F'),EQ.F,R(Q(sig*1000,'psi',1),Op('·'),Q(As,'in²')),Q(F,'lbf',0),API+', Eq. (H.2)'),
-  step('Make-up torque',V('τ'),EQ.tau,
-   R(Fr(R(Nm(F,0),Op('·'),Nm(E,5),Op('·'),Br(R(Nm(P,5),Op('+'),Fr(R(PI,Op('·'),Nm(f),Op('·'),Nm(E,5)),COS)),'[')),
-        R(Nm(2),Op('·'),Br(R(PI,Op('·'),Nm(E,5),Op('−'),Fr(R(Nm(P,5),Op('·'),Nm(f)),COS)),'['))),
-     Op('+'),Nm(F,0),Op('·'),Nm(f),Op('·'),Br(Fr(R(Nm(H,4),Op('+'),Nm(D),Op('+'),Nm(K)),Nm(4)),'[')),
-   Q(tau,'lbf·in',1),API+', Eq. (H.3)'),
-  step('Make-up torque in ft·lbf',V('τ','ft'),EQ.tauft,Fr(Q(tau,'lbf·in',1),Q(12,'in/ft')),Q(tauft,'ft·lbf',1))];
- const result={name:'Bolt preload and make-up torque (API 6A Annex H)',demand:tauft,allowable:'',uf:NaN,unit:'ft·lbf',status:'CALCULATED',vars,steps};
- show(result);saveModuleResult('bolt',result);persistInputs();return true;
+ try{
+  if(!validateForm(RULES).ok)return false;
+  const D=num('bp_dia'),n=num('bp_tpi'),f=num('bp_f'),Sy=num('bp_yield'),k=num('bp_pct')/100,K=0.125;
+
+  /* Thread pitch */
+  const P=1/n;
+  /* ASME B1.1 basic pitch diameter: E = D − 2·[(3/8)·cos(30°)·(1/n)] */
+  const E=D-2*((3/8)*Math.cos(Math.PI/6)*P);
+  if(E<=0||E>=D){showError('Calculated pitch diameter E must be greater than 0 and less than D. Check the diameter and TPI inputs.');return false}
+
+  const H=1.5*D+K;
+  const c=Math.cos(Math.PI/6);
+  const As=0.25*Math.PI*Math.pow(D-0.9743*P,2);
+  const sig=k*Sy;
+  const F=sig*1000*As;
+  const t1=F*E*(P+Math.PI*f*E/c)/(2*(Math.PI*E-P*f/c));
+  const t2=F*f*((H+D+K)/4);
+  const tau=t1+t2, tauft=tau/12;
+
+  const vars=[
+   variable('D','Thread major diameter',D,'in','input',V('D')),
+   variable('n','Threads per inch',n,'in⁻¹','input',V('n')),
+   variable('f','Friction coefficient',f,'-','input',V('f')),
+   variable('Sy','Yield strength',Sy,'ksi','input',V('S','y')),
+   variable('k','Target bolt stress, fraction of Sᵧ',k,'-','input',V('k')),
+   variable('K','Nut internal chamfer',K,'in','input',V('K')),
+   variable('P','Thread pitch',P,'in','calculated',V('P')),
+   variable('E','Pitch diameter of thread',E,'in','calculated',V('E')),
+   variable('H','Hex size',H,'in','calculated',V('H')),
+   variable('As','Tensile stress area',As,'in²','calculated',V('A','s')),
+   variable('σ','Bolt stress',sig,'ksi','calculated',V('σ')),
+   variable('F','Bolt load',F,'lbf','calculated',V('F')),
+   variable('τ','Make-up torque',tau,'lbf·in','calculated',V('τ')),
+   variable('τft','Make-up torque',tauft,'ft·lbf','calculated',V('τ','ft'))];
+
+  const steps=[
+   step('Thread pitch',V('P'),EQ.P,Fr(Nm(1),Q(n,'in⁻¹')),Q(P,'in',5),'Thread pitch'),
+   step('Pitch diameter of thread',V('E'),EQ.E,
+    R(Q(D,'in'),Op('−'),Nm(2),Op('·'),Br(R(Fr(Nm(3),Nm(8)),Op('·'),COS30,Op('·'),Fr(Nm(1),Q(n,'in⁻¹'))),'[')),
+    Q(E,'in',5),ASME),
+   step('Hex size (nut)',V('H'),EQ.H,R(Nm(1.5),Op('·'),Q(D,'in'),Op('+'),Q(K,'in')),Q(H,'in'),API),
+   step('Tensile stress area',V('A','s'),EQ.As,R(Fr(Nm(1),Nm(4)),Op('·'),PI,Op('·'),Pw(Br(R(Q(D,'in'),Op('−'),Br(R(Nm(0.9743),Op('·'),Q(P,'in',5)))),'['),Nm(2))),Q(As,'in²'),API+', Eq. (H.1)'),
+   step('Bolt stress',V('σ'),EQ.sig,R(Nm(k),Op('·'),Q(Sy,'ksi')),Q(sig,'ksi',3)),
+   step('Bolt load',V('F'),EQ.F,R(Q(sig*1000,'psi',1),Op('·'),Q(As,'in²')),Q(F,'lbf',0),API+', Eq. (H.2)'),
+   step('Make-up torque',V('τ'),EQ.tau,
+    R(Fr(R(Nm(F,0),Op('·'),Nm(E,5),Op('·'),Br(R(Nm(P,5),Op('+'),Fr(R(PI,Op('·'),Nm(f),Op('·'),Nm(E,5)),COS)),'[')),
+         R(Nm(2),Op('·'),Br(R(PI,Op('·'),Nm(E,5),Op('−'),Fr(R(Nm(P,5),Op('·'),Nm(f)),COS)),'['))),
+      Op('+'),Nm(F,0),Op('·'),Nm(f),Op('·'),Br(Fr(R(Nm(H,4),Op('+'),Nm(D),Op('+'),Nm(K)),Nm(4)),'[')),
+    Q(tau,'lbf·in',1),API+', Eq. (H.3)'),
+   step('Make-up torque in ft·lbf',V('τ','ft'),EQ.tauft,Fr(Q(tau,'lbf·in',1),Q(12,'in/ft')),Q(tauft,'ft·lbf',1))];
+
+  const result={name:'Bolt preload and make-up torque (API 6A Annex H)',demand:tauft,allowable:'',uf:NaN,unit:'ft·lbf',status:'CALCULATED',vars,steps};
+  show(result);saveModuleResult('bolt',result);persistInputs();clearError();return true;
+ }catch(e){
+  console.error(e);
+  showError('Calculation error: '+e.message);
+  return false;
+ }
 }
 
 function show(result){document.getElementById('results').innerHTML=resultsHTML(result);document.getElementById('sheet').innerHTML=detailedSection('bolt',result)}
-function restore(){restoreInputs(FIELDS);const s=(loadData().results||{}).bolt;if(s)show(s)}
+function restore(){restoreInputs(FIELDS);const s=(loadData().results||{}).bolt;if(s){try{show(s)}catch(e){console.warn('Saved bolt result could not be displayed; recalculate.',e)}}}
 renderChrome('bolt');
 markRequiredFields(RULES);restore();
 document.querySelectorAll('input,select').forEach(el=>el.addEventListener('input',persistInputs));
